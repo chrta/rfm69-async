@@ -1,0 +1,21 @@
+[package]
+name = "rfm69-async"
+version = "0.0.1"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "async driver for the rfm69 radio transceiver"
+repository = "https://github.com/chrta/rfm69-async"
+categories = [
+    "rfm69",
+    "driver",
+    "no-std",
+    "async",
+    "embedded-hal-async",
+]
+
+[dependencies]
+log = "0.4"
+
+embedded-hal-1 = { package = "embedded-hal", version = "=1.0.0-alpha.10" }
+embedded-hal-async = "0.2.0-alpha.1"
+
