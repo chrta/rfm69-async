@@ -16,12 +16,15 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Build rfm69-async
+    - name: Build & check rfm69-async
       working-directory: ./rfm69-async
-      run: cargo build --verbose && cargo clippy --verbose
-    - name: Build examples
+      run: cargo build --verbose && cargo clippy --verbose && cargo fmt --check
+    - name: Build & check examples
       working-directory: ./examples/rp
-      run: cargo build --verbose && cargo clippy --verbose
+      run: cargo build --verbose && cargo clippy --verbose && cargo fmt --check
     - name: Run tests
       working-directory: ./rfm69-async
       run: cargo test --verbose
+    - name: Build docs
+      working-directory: ./rfm69-async
+      run: cargo doc --verbose
