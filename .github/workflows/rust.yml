@@ -1,0 +1,27 @@
+name: Rust
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Build rfm69-async
+      working-directory: ./rfm69-async
+      run: cargo build --verbose && cargo clippy --verbose
+    - name: Build examples
+      working-directory: ./examples/rp
+      run: cargo build --verbose && cargo clippy --verbose
+    - name: Run tests
+      working-directory: ./rfm69-async
+      run: cargo test --verbose
