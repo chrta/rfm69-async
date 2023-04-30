@@ -1,7 +1,9 @@
 # RFM69-Async
 
 RFM69-Async is an async driver for the SubGhz transceiver RFM69.
-The code is inspired by https://github.com/almusil/rfm69
+
+[![crates.io page](https://img.shields.io/crates/v/rfm69-async.svg)](https://crates.io/crates/rfm69-async)
+[![docs.rs page](https://docs.rs/rfm69-async/badge.svg)](https://docs.rs/rfm69-async)
 
 ## Examples
 
@@ -48,3 +50,12 @@ This work is licensed under either of
 - MIT license ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
 
 at your option.
+
+### Contribution
+
+Any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
+
+### Credits
+
+The code is inspired by https://github.com/almusil/rfm69, which was
+inspired by older https://github.com/lolzballs/rfm69.
