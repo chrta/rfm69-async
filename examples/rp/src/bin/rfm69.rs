@@ -4,7 +4,6 @@
 
 use embassy_embedded_hal::shared_bus::asynch::spi::SpiDevice;
 use embassy_executor::Spawner;
-use rfm69_async::{config, Rfm69};
 use embassy_rp::gpio::{Input, Level, Output, Pull};
 use embassy_rp::peripherals::USB;
 use embassy_rp::usb::Driver;
@@ -12,6 +11,7 @@ use embassy_rp::{interrupt, spi};
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::mutex::Mutex;
 use embassy_time::{Delay, Duration, Timer};
+use rfm69_async::{config, Rfm69};
 use {defmt_rtt as _, panic_probe as _};
 
 #[embassy_executor::task]
