@@ -9,6 +9,7 @@ use embedded_hal_1::spi::Operation;
 use embedded_hal_async::delay::DelayUs;
 use embedded_hal_async::digital::Wait;
 use embedded_hal_async::spi::SpiDevice;
+use heapless::Vec;
 
 use crate::registers::*;
 
@@ -30,9 +31,125 @@ pub enum Error<SPI, RESET, DIO0> {
     SPI(SPI),
     DIO0(DIO0),
     SyncSize,
+    WrongPacketFormat,
 }
 
 use Error::*;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum Address {
+    Broadcast,
+    Unicast(u8),
+}
+impl Address {
+    fn from_u8(addr: u8) -> Address {
+        if addr == 255 {
+            Self::Broadcast
+        } else {
+            Self::Unicast(addr)
+        }
+    }
+
+    fn to_u8(&self) -> u8 {
+        match self {
+            Self::Broadcast => 255,
+            Self::Unicast(addr) => *addr,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum Flags {
+    None,
+    Ack(u8),
+}
+impl Flags {
+    fn from_u8(flags: u8) -> Flags {
+        match flags {
+            0 => Self::None,
+            1..=3 => Self::Ack(flags),
+            _ => Self::None,
+        }
+    }
+
+    fn to_u8(&self) -> u8 {
+        match self {
+            Self::None => 0,
+            Self::Ack(retries) => *retries,
+        }
+    }
+}
+
+/// Packet that can be sent and received
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub struct Packet {
+    pub src: Address,
+    pub dst: Address,
+    pub flags: Flags,
+    pub data: Vec<u8, 61>,
+    pub rssi: Option<i16>,
+}
+
+impl Packet {
+    /// this is without the length byte itself
+    const MIN_VALID_PACKET_LEN: u8 = 3;
+
+    const MAX_PAYLOAD_DATA_LENGTH: usize = 61;
+
+    pub fn new(src: Address, dst: Address, flags: Flags, data: &[u8]) -> Result<Packet, ()> {
+        if data.len() > Self::MAX_PAYLOAD_DATA_LENGTH {
+            return Err(());
+        }
+        Ok(Self {
+            src: src,
+            dst: dst,
+            flags: flags,
+            data: Vec::from_slice(data).unwrap(),
+            rssi: None,
+        })
+    }
+
+    pub fn from_rx_data(len: u8, raw: &[u8], rssi: i16) -> Result<Packet, ()> {
+        if len < Self::MIN_VALID_PACKET_LEN {
+            return Err(());
+        }
+        Ok(Self {
+            src: Address::from_u8(raw[0]),
+            dst: Address::from_u8(raw[1]),
+            flags: Flags::from_u8(raw[2]),
+            data: Vec::from_slice(&raw[3..]).unwrap(),
+            rssi: Some(rssi),
+        })
+    }
+
+    /// Converts packet to byte slice for the fifo
+    ///
+    /// The returned length is the amount of bytes written into the given
+    /// array.
+    /// # Arguments
+    /// * `raw` - This array is filled
+    fn to_slice(&self, raw: &mut [u8; 65]) -> Result<u8, ()> {
+        // Length of the data inside the fifo (excluding the length itself)
+        let fifo_len = self.data.len() as u8 + Self::MIN_VALID_PACKET_LEN;
+
+        raw[0] = fifo_len;
+        raw[1] = self.src.to_u8();
+        raw[2] = self.dst.to_u8();
+        raw[3] = self.flags.to_u8();
+        raw[4..4 + self.data.len()].copy_from_slice(self.data.as_slice());
+        Ok(fifo_len + 1)
+    }
+
+    pub fn is_ack(&self) -> bool {
+        match self.flags {
+            Flags::None => false,
+            Flags::Ack(_) => true,
+        }
+    }
+}
 
 /// The rfm69 transceiver
 pub struct Rfm69<SPI, RESET, DIO0, DELAY> {
@@ -64,6 +181,7 @@ where
     /// * `spi` - The spi bus the device is connected to (including cs)
     /// * `reset` - The mcu pin the rfm69 reset pin is connected to
     /// * `dio0` - The mcu pin the rfm69 reset pin is connected to
+    /// * `delay` - The delay implementation
     pub fn new(spi: SPI, reset: RESET, dio0: Option<DIO0>, delay: DELAY) -> Self {
         Self {
             spi,
@@ -280,11 +398,7 @@ where
     /// Send data over the radio
     ///
     /// This async function returns when all data is sent.
-    pub async fn send(&mut self, buffer: &[u8]) -> Result<(), Error<E, RESET::Error, DIO0::Error>> {
-        if buffer.is_empty() {
-            return Ok(());
-        }
-
+    pub async fn send(&mut self, packet: &Packet) -> Result<(), Error<E, RESET::Error, DIO0::Error>> {
         if self.dio0.is_some() {
             // configure dio mapping 00, so PacketSent is on it
             self.write_register(Register::DioMapping1, 0).await?;
@@ -311,7 +425,9 @@ where
         self.delay.delay_ms(1).await;
         log::info!("4");
 
-        self.write_registers(Register::Fifo, buffer).await?;
+        let mut raw = [0_u8; 65];
+        let len = packet.to_slice(&mut raw).map_err(|_| Error::WrongPacketFormat)?;
+        self.write_registers(Register::Fifo, &raw[..len as usize]).await?;
 
         log::info!("5");
         //self.set_mode(OpMode::FreqSyn).await?;
@@ -335,11 +451,7 @@ where
     /// Receive data over the radio
     ///
     /// This async function returns once a complete packet is received.
-    pub async fn recv(&mut self, buffer: &mut [u8]) -> Result<u8, Error<E, RESET::Error, DIO0::Error>> {
-        if buffer.is_empty() {
-            return Ok(0);
-        }
-
+    pub async fn recv(&mut self) -> Result<Packet, Error<E, RESET::Error, DIO0::Error>> {
         if self.dio0.is_some() {
             // configure dio0 mapping 01, so PayloadReady is on it
             self.write_register(Register::DioMapping1, 0x40).await?;
@@ -359,12 +471,14 @@ where
 
         // First byte in fifo is length, because af variable packet length.
         let len = self.read_register(Register::Fifo).await?;
+        let mut buffer = [0; 64];
         self.read_registers(Register::Fifo, &mut buffer[..len as usize]).await?;
-
         let rssi = self.read_rssi().await?;
+
+        let packet = Packet::from_rx_data(len, &buffer, rssi).map_err(|_| Error::WrongPacketFormat)?;
 
         log::info!("Rx: Rssi {}; Len {}", rssi, len);
 
-        Ok(len)
+        Ok(packet)
     }
 }
