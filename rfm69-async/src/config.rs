@@ -5,8 +5,9 @@ use embedded_hal_async::delay::DelayUs;
 use embedded_hal_async::digital::Wait;
 use embedded_hal_async::spi::SpiDevice;
 
+use crate::error::Error;
 use crate::registers::*;
-use crate::{Error, Rfm69};
+use crate::rfm::Rfm69;
 
 /// Configuration compatible with Low Power Lab radio protocol
 ///
