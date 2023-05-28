@@ -6,14 +6,18 @@ use embassy_embedded_hal::shared_bus::asynch::spi::SpiDevice;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::{Input, Level, Output, Pull};
 use embassy_rp::peripherals::USB;
-use embassy_rp::usb::Driver;
-use embassy_rp::{interrupt, spi};
+use embassy_rp::usb::{Driver, InterruptHandler};
+use embassy_rp::{bind_interrupts, spi};
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::mutex::Mutex;
 use embassy_time::{with_timeout, Delay, Duration, Timer};
 use rfm69_async::mac::{receive_packet, send_packet};
 use rfm69_async::{config, Address, Flags, Rfm69};
 use {defmt_rtt as _, panic_probe as _};
+
+bind_interrupts!(struct Irqs {
+    USBCTRL_IRQ => InterruptHandler<USB>;
+});
 
 #[embassy_executor::task]
 async fn logger_task(driver: Driver<'static, USB>) {
@@ -23,8 +27,7 @@ async fn logger_task(driver: Driver<'static, USB>) {
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
-    let irq = interrupt::take!(USBCTRL_IRQ);
-    let driver = Driver::new(p.USB, irq);
+    let driver = Driver::new(p.USB, Irqs);
     spawner.spawn(logger_task(driver)).unwrap();
 
     // wait a little so usb logger is completely initialized
