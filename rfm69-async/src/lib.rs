@@ -9,6 +9,8 @@ mod packet;
 mod registers;
 mod rfm;
 
+pub mod mac;
+
 pub use address::Address;
 pub use error::Error;
 pub use flags::Flags;

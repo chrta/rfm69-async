@@ -11,11 +11,8 @@ use embassy_rp::{interrupt, spi};
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::mutex::Mutex;
 use embassy_time::{with_timeout, Delay, Duration, Timer};
-use embedded_hal_1::digital::{InputPin, OutputPin};
-use embedded_hal_async::delay::DelayUs;
-use embedded_hal_async::digital::Wait;
-use embedded_hal_async::spi::SpiDevice as SpiDeviceTrait;
-use rfm69_async::{config, Address, Error, Flags, Packet, Rfm69};
+use rfm69_async::mac::{receive_packet, send_packet};
+use rfm69_async::{config, Address, Flags, Rfm69};
 use {defmt_rtt as _, panic_probe as _};
 
 #[embassy_executor::task]
@@ -85,98 +82,6 @@ async fn main(spawner: Spawner) {
             }
             Ok(Err(e)) => log::info!("Rx error {:?}", e),
             Err(e) => log::info!("Rx timeout error {:?}", e),
-        }
-    }
-}
-
-#[derive(Debug)]
-enum TxError<SPI, RESET, DIO0> {
-    AckTimeout,
-    Rfm69Error(Error<SPI, RESET, DIO0>),
-}
-
-const MAC_ACK_TIMEOUT: Duration = Duration::from_millis(50);
-const TX_RETRY_DELAY: Duration = Duration::from_millis(200);
-
-async fn send_packet<SPI, RESET, DIO0, DELAY, E>(
-    rfm: &mut Rfm69<SPI, RESET, DIO0, DELAY>,
-    src: Address,
-    dst: Address,
-    flags: Flags,
-    data: &[u8],
-) -> Result<(), TxError<E, RESET::Error, DIO0::Error>>
-where
-    SPI: SpiDeviceTrait<u8, Error = E>,
-    RESET: OutputPin,
-    DIO0: InputPin + Wait,
-    DELAY: DelayUs,
-{
-    let packet = Packet::new(src, dst, flags, data).map_err(|_| TxError::Rfm69Error(Error::WrongPacketFormat))?;
-
-    match flags {
-        Flags::None | Flags::Ack(0) => rfm.send(&packet).await.map_err(|e| TxError::Rfm69Error(e)),
-        Flags::Ack(retries) => {
-            for _ in 1..retries {
-                rfm.send(&packet).await.map_err(|e| TxError::Rfm69Error(e))?;
-                let result = with_timeout(MAC_ACK_TIMEOUT, wait_for_mac_ack(rfm, src, dst)).await;
-                match result {
-                    Ok(Ok(())) => return Ok(()),
-                    Ok(Err(e)) => return Err(TxError::Rfm69Error(e)),
-                    Err(_) => Timer::after(TX_RETRY_DELAY).await,
-                }
-            }
-            Err(TxError::AckTimeout)
-        }
-    }
-}
-
-async fn wait_for_mac_ack<SPI, RESET, DIO0, DELAY, E>(
-    rfm: &mut Rfm69<SPI, RESET, DIO0, DELAY>,
-    src: Address,
-    dst: Address,
-) -> Result<(), Error<E, RESET::Error, DIO0::Error>>
-where
-    SPI: SpiDeviceTrait<u8, Error = E>,
-    RESET: OutputPin,
-    DIO0: InputPin + Wait,
-    DELAY: DelayUs,
-{
-    loop {
-        // expect an ack from dst
-        let rx_packet = rfm.recv().await?;
-        if rx_packet.src == dst && rx_packet.dst == src && rx_packet.is_ack() {
-            return Ok(());
-        }
-    }
-}
-
-async fn receive_packet<SPI, RESET, DIO0, DELAY, E>(
-    rfm: &mut Rfm69<SPI, RESET, DIO0, DELAY>,
-    dst: Address,
-) -> Result<Packet, Error<E, RESET::Error, DIO0::Error>>
-where
-    SPI: SpiDeviceTrait<u8, Error = E>,
-    RESET: OutputPin,
-    DIO0: InputPin + Wait,
-    DELAY: DelayUs,
-{
-    loop {
-        let packet = rfm.recv().await?;
-        match packet.dst {
-            Address::Unicast(addr) if Address::Unicast(addr) == dst => {
-                if let Flags::Ack(n) = packet.flags {
-                    // Do not send acks to requests with 0 retry count
-                    if n > 0 {
-                        let ack =
-                            Packet::new(dst, packet.src, Flags::Ack(0), &[]).map_err(|_| Error::WrongPacketFormat)?;
-                        // TODO: There may be a need for a delay here, if the sender is not able to switch into receive mode quick enough
-                        rfm.send(&ack).await?;
-                    }
-                }
-                return Ok(packet);
-            }
-            Address::Broadcast => return Ok(packet),
-            _ => (),
         }
     }
 }
