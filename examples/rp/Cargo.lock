@@ -1101,6 +1101,7 @@ checksum = "a5996294f19bd3aae0453a862ad728f60e6600695733dd5df01da90c54363a3c"
 name = "rfm69-async"
 version = "0.0.1"
 dependencies = [
+ "embassy-time",
  "embedded-hal 1.0.0-alpha.10",
  "embedded-hal-async",
  "heapless",
