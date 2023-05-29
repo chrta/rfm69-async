@@ -65,9 +65,9 @@ where
         self.delay.delay_ms(10).await;
         self.reset.set_low().map_err(Error::Reset)?;
         self.delay.delay_ms(10).await;
-        log::info!("Reading version register...");
+        log::debug!("Reading version register...");
         let version = self.read_register(Register::Version).await?;
-        log::info!("Version: {version:#x}");
+        log::debug!("Version: {version:#x}");
         if version == VERSION_CHECK {
             self.set_mode(OpMode::Sleep).await?;
             Ok(())
@@ -269,38 +269,30 @@ where
             self.write_register(Register::DioMapping1, 0).await?;
         }
 
-        log::info!("1");
         let mode = self.read_register(Register::OpMode).await?;
-        log::info!("OpMode 0x{:02x}", mode);
+        log::debug!("OpMode 0x{:02x}", mode);
 
         self.set_mode(OpMode::Standby).await?;
         self.delay.delay_ms(1).await;
-        log::info!("2");
+
         // ModeReady does not seem to work, if already in that mode
         while !self.is_mode_ready().await? {
-            self.delay.delay_ms(2000).await;
+            self.delay.delay_ms(500).await;
             let mode = self.read_register(Register::OpMode).await?;
             let irq1 = self.read_register(Register::IrqFlags1).await?;
             let irq2 = self.read_register(Register::IrqFlags2).await?;
             log::info!("OM 0x{:02x} - Irq1 0x{:02x} - Irq2 0x{:02x}", mode, irq1, irq2);
         }
-        log::info!("3");
 
         self.reset_fifo().await?;
         self.delay.delay_ms(1).await;
-        log::info!("4");
 
         let mut raw = [0_u8; 65];
         let len = packet.to_slice(&mut raw).map_err(|_| Error::WrongPacketFormat)?;
         self.write_registers(Register::Fifo, &raw[..len as usize]).await?;
 
-        log::info!("5");
-        //self.set_mode(OpMode::FreqSyn).await?;
-        //Timer::after(Duration::from_millis(500)).await;
-        //log::info!("5a");
         self.set_mode(OpMode::Tx).await?;
-        log::info!("6");
-        //Timer::after(Duration::from_millis(10)).await;
+
         if let Some(dio0) = &mut self.dio0 {
             dio0.wait_for_high().await.map_err(Error::DIO0)?;
         } else {
@@ -308,7 +300,7 @@ where
                 //Timer::after(Duration::from_micros(500_u64)).await;
             }
         }
-        log::info!("7");
+        log::debug!("Packet Sent");
 
         self.set_mode(OpMode::Standby).await
     }
@@ -342,7 +334,7 @@ where
 
         let packet = Packet::from_rx_data(len, &buffer, rssi).map_err(|_| Error::WrongPacketFormat)?;
 
-        log::info!("Rx: Rssi {}; Len {}", rssi, len);
+        log::debug!("Rx: Rssi {}; Len {}", rssi, len);
 
         Ok(packet)
     }
