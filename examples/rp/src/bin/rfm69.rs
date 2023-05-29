@@ -70,14 +70,17 @@ async fn main(spawner: Spawner) {
 
     let mut counter = 0;
     let own_address = Address::Unicast(42);
+
+    log::info!("Own address: {:?}", own_address);
     loop {
         let to_address = Address::Unicast(70);
-        let res = send_packet(&mut rfm, own_address, to_address, Flags::None, &[0xAA, counter as u8]).await;
+        log::info!("Sending packet to {:?}", to_address);
+        let res = send_packet(&mut rfm, own_address, to_address, Flags::Ack(3), &[0xAA, counter as u8]).await;
         log::info!("Tx Res {:?}", res);
         Timer::after(Duration::from_secs(1)).await;
 
         counter += 1;
-        log::info!("Tick {}", counter);
+        log::info!("Trying to receive packet for 10 seconds (# {})", counter);
         let rx_result = with_timeout(Duration::from_secs(10), receive_packet(&mut rfm, own_address)).await;
         match rx_result {
             Ok(Ok(packet)) => {
