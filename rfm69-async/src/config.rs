@@ -59,9 +59,6 @@ where
     .await?;
     rfm.rssi_threshold(220).await?;
     rfm.frequency(frequency).await?;
-    // after setting the frequency it is necessary to go into freq syn status, otherwise it might not be possible to get a pll lock later
-    // i don't know why
-    rfm.set_mode(OpMode::FreqSyn).await?;
     rfm.continuous_dagc(ContinuousDagc::ImprovedMarginAfcLowBetaOn0).await?;
     //Timer::after(Duration::from_millis(1)).await;
     rfm.set_mode(OpMode::Sleep).await?;
@@ -117,9 +114,6 @@ where
     .await?;
     rfm.rssi_threshold(220).await?;
     rfm.frequency(frequency).await?;
-    // after setting the frequency it is necessary to go into freq syn status, otherwise it might not be possible to get a pll lock later
-    // i don't know why
-    rfm.set_mode(OpMode::FreqSyn).await?;
     rfm.continuous_dagc(ContinuousDagc::ImprovedMarginAfcLowBetaOn0).await?;
     //Timer::after(Duration::from_millis(1)).await;
     rfm.set_mode(OpMode::Sleep).await?;
