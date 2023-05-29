@@ -37,9 +37,13 @@ where
     let packet = Packet::new(src, dst, flags, data).map_err(|_| TxError::Rfm69Error(Error::WrongPacketFormat))?;
 
     match flags {
-        Flags::None | Flags::Ack(0) => rfm.send(&packet).await.map_err(|e| TxError::Rfm69Error(e)),
+        Flags::None | Flags::Ack(0) => {
+            log::info!("Sending packet");
+            rfm.send(&packet).await.map_err(|e| TxError::Rfm69Error(e))
+        }
         Flags::Ack(retries) => {
-            for _ in 1..retries {
+            for i in 1..=retries {
+                log::info!("Sending packet {i} of {retries} and waiting for ACK");
                 rfm.send(&packet).await.map_err(|e| TxError::Rfm69Error(e))?;
                 let result = with_timeout(MAC_ACK_TIMEOUT, wait_for_mac_ack(rfm, src, dst)).await;
                 match result {
@@ -68,6 +72,7 @@ where
         // expect an ack from dst
         let rx_packet = rfm.recv().await?;
         if rx_packet.src == dst && rx_packet.dst == src && rx_packet.is_ack() {
+            log::info!("Received valid ACK");
             return Ok(());
         }
     }
@@ -93,6 +98,7 @@ where
                         let ack =
                             Packet::new(dst, packet.src, Flags::Ack(0), &[]).map_err(|_| Error::WrongPacketFormat)?;
                         // TODO: There may be a need for a delay here, if the sender is not able to switch into receive mode quick enough
+                        log::info!("Sending requested ACK as reply");
                         rfm.send(&ack).await?;
                     }
                 }
