@@ -77,7 +77,6 @@ async fn main(spawner: Spawner) {
         log::info!("Sending packet to {:?}", to_address);
         let res = send_packet(&mut rfm, own_address, to_address, Flags::Ack(3), &[0xAA, counter as u8]).await;
         log::info!("Tx Res {:?}", res);
-        Timer::after(Duration::from_secs(1)).await;
 
         counter += 1;
         log::info!("Trying to receive packet for 10 seconds (# {})", counter);
