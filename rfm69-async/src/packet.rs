@@ -47,7 +47,7 @@ impl Packet {
             src: Address::from_u8(raw[0]),
             dst: Address::from_u8(raw[1]),
             flags: Flags::from_u8(raw[2]),
-            data: Vec::from_slice(&raw[3..]).unwrap(),
+            data: Vec::from_slice(&raw[3..len as usize]).unwrap(),
             rssi: Some(rssi),
         })
     }
