@@ -14,6 +14,11 @@ pub enum TxError<SPI, RESET, DIO0> {
     Rfm69Error(Error<SPI, RESET, DIO0>),
 }
 
+// Delay sending MAC ACK by this duration, so the original sender could switch
+// from TX to RX mode.
+#[cfg(feature = "embassy")]
+const MAC_ACK_TX_DELAY: Duration = Duration::from_millis(10);
+
 #[cfg(feature = "embassy")]
 const MAC_ACK_TIMEOUT: Duration = Duration::from_millis(50);
 
@@ -97,8 +102,12 @@ where
                     if n > 0 {
                         let ack =
                             Packet::new(dst, packet.src, Flags::Ack(0), &[]).map_err(|_| Error::WrongPacketFormat)?;
-                        // TODO: There may be a need for a delay here, if the sender is not able to switch into receive mode quick enough
                         log::info!("Sending requested ACK as reply");
+
+                        // Add small delay, if the sender is not able to switch into receive mode quick enough
+                        #[cfg(feature = "embassy")]
+                        Timer::after(MAC_ACK_TX_DELAY).await;
+
                         rfm.send(&ack).await?;
                     }
                 }
