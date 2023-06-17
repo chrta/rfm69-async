@@ -8,7 +8,7 @@ impl Flags {
     pub(crate) fn from_u8(flags: u8) -> Flags {
         match flags {
             0 => Self::None,
-            1..=3 => Self::Ack(flags),
+            1..=4 => Self::Ack(flags - 1),
             _ => Self::None,
         }
     }
@@ -16,7 +16,7 @@ impl Flags {
     pub(crate) fn as_u8(&self) -> u8 {
         match self {
             Self::None => 0,
-            Self::Ack(retries) => *retries,
+            Self::Ack(retries) => *retries + 1,
         }
     }
 }
