@@ -108,7 +108,7 @@ where
     .await?;
     rfm.fifo_mode(FifoMode::NotEmpty).await?;
     rfm.lna(LnaConfig {
-        zin: LnaImpedance::Ohm200,
+        zin: LnaImpedance::Ohm50,
         gain_select: LnaGain::AgcLoop,
     })
     .await?;
