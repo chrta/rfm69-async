@@ -14,8 +14,6 @@ mod traits;
 #[cfg(feature = "embassy")]
 mod stack;
 
-pub mod mac;
-
 pub use address::Address;
 pub use error::Error;
 pub use flags::Flags;
