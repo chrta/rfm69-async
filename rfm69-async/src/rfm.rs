@@ -1,6 +1,6 @@
 use embedded_hal_1::digital::{InputPin, OutputPin};
 use embedded_hal_1::spi::Operation;
-use embedded_hal_async::delay::DelayUs;
+use embedded_hal_async::delay::DelayNs;
 use embedded_hal_async::digital::Wait;
 use embedded_hal_async::spi::SpiDevice;
 
@@ -32,7 +32,7 @@ where
     SPI: SpiDevice<u8, Error = E>,
     RESET: OutputPin,
     DIO0: InputPin + Wait,
-    DELAY: DelayUs,
+    DELAY: DelayNs,
 {
     /// Returns a Rfm69 instance
     ///
@@ -221,10 +221,8 @@ where
     }
 
     async fn write_register(&mut self, reg: Register, byte: u8) -> Result<(), Error<E, RESET::Error, DIO0::Error>> {
-        self.spi
-            .write_transaction(&[&[reg.addr() | 0x80, byte]])
-            .await
-            .map_err(Error::SPI)
+        let mut ops = [Operation::Write(&[reg.addr() | 0x80, byte])];
+        self.spi.transaction(&mut ops).await.map_err(Error::SPI)
     }
 
     async fn update_register<F>(&mut self, reg: Register, f: F) -> Result<(), Error<E, RESET::Error, DIO0::Error>>
@@ -236,10 +234,8 @@ where
     }
 
     async fn write_registers(&mut self, reg: Register, data: &[u8]) -> Result<(), Error<E, RESET::Error, DIO0::Error>> {
-        self.spi
-            .write_transaction(&[&[reg.addr() | 0x80], data])
-            .await
-            .map_err(Error::SPI)
+        let mut ops = [Operation::Write(&[reg.addr() | 0x80]), Operation::Write(data)];
+        self.spi.transaction(&mut ops).await.map_err(Error::SPI)
     }
 
     async fn read_registers(

@@ -1,5 +1,4 @@
 #![no_std]
-#![feature(type_alias_impl_trait)]
 
 mod address;
 pub mod config;

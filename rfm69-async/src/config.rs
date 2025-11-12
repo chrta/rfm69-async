@@ -1,7 +1,7 @@
 //! Configurations that are available to initialize the rfm69
 
 use embedded_hal_1::digital::{InputPin, OutputPin};
-use embedded_hal_async::delay::DelayUs;
+use embedded_hal_async::delay::DelayNs;
 use embedded_hal_async::digital::Wait;
 use embedded_hal_async::spi::SpiDevice;
 
@@ -23,7 +23,7 @@ where
     SPI: SpiDevice<u8, Error = E>,
     RESET: OutputPin,
     DIO0: InputPin + Wait,
-    DELAY: DelayUs,
+    DELAY: DelayNs,
 {
     rfm.reset().await?;
     rfm.set_mode(OpMode::Standby).await?;
@@ -78,7 +78,7 @@ where
     SPI: SpiDevice<u8, Error = E>,
     RESET: OutputPin,
     DIO0: InputPin + Wait,
-    DELAY: DelayUs,
+    DELAY: DelayNs,
 {
     rfm.reset().await?;
     rfm.set_mode(OpMode::Standby).await?;

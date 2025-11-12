@@ -1,7 +1,7 @@
 #[cfg(feature = "embassy")]
 use embassy_time::{with_timeout, Duration, Timer};
 use embedded_hal_1::digital::{InputPin, OutputPin};
-use embedded_hal_async::delay::DelayUs;
+use embedded_hal_async::delay::DelayNs;
 use embedded_hal_async::digital::Wait;
 use embedded_hal_async::spi::SpiDevice;
 
@@ -37,7 +37,7 @@ where
     SPI: SpiDevice<u8, Error = E>,
     RESET: OutputPin,
     DIO0: InputPin + Wait,
-    DELAY: DelayUs,
+    DELAY: DelayNs,
 {
     let packet = Packet::new(src, dst, flags, data).map_err(|_| TxError::Rfm69Error(Error::WrongPacketFormat))?;
 
@@ -71,7 +71,7 @@ where
     SPI: SpiDevice<u8, Error = E>,
     RESET: OutputPin,
     DIO0: InputPin + Wait,
-    DELAY: DelayUs,
+    DELAY: DelayNs,
 {
     loop {
         // expect an ack from dst
@@ -91,7 +91,7 @@ where
     SPI: SpiDevice<u8, Error = E>,
     RESET: OutputPin,
     DIO0: InputPin + Wait,
-    DELAY: DelayUs,
+    DELAY: DelayNs,
 {
     loop {
         let packet = rfm.recv().await?;
