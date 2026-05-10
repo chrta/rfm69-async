@@ -58,6 +58,59 @@ For example:
 elf2uf2-rs -d target/thumbv6m-none-eabi/release/rfm69
 ```
 
+### Observing the output on a connected PC
+
+The bins under `examples/rp/` ship two independent log transports. Pick whichever
+matches your hardware setup:
+
+#### USB CDC serial (no debug probe required)
+
+The default. After the Pico finishes booting it enumerates a second time as a
+USB CDC ACM device (`/dev/ttyACM*` on Linux, `/dev/tty.usbmodem*` on macOS,
+`COM*` on Windows) driven by `embassy-usb-logger`. All `log::*` output from the
+example bins **and from the driver crate** is forwarded over this serial link.
+Read it with any terminal:
+
+```bash
+# Linux
+screen /dev/ttyACM0 115200          # exit with Ctrl-A Ctrl-\
+# or
+picocom -b 115200 /dev/ttyACM0
+```
+
+The first line you should see after a freshly flashed `echo_server` is
+`--- Staring echo server ---`, followed by `Reading version register...` /
+`Version: 0x24` from the driver. Note that the bins wait a few seconds at boot
+so the host has time to finish enumerating the USB device before logging starts.
+
+This transport carries the driver's logs because the examples crate enables
+the driver's `log` cargo feature. If you depend on `rfm69-async` in your own
+project and want the same behaviour, enable the `log` feature on the driver
+dependency:
+
+```toml
+rfm69-async = { version = "…", features = ["embassy", "log"] }
+```
+
+#### defmt-rtt over an SWD debug probe (optional)
+
+The bins also pull in `defmt-rtt` and `panic-probe`. If you have a debug probe
+wired to the Pico's SWD pins (e.g. the [Raspberry Pi Debug Probe], or a second
+Pico flashed with the `debugprobe` firmware), you can flash and stream
+defmt-formatted output directly with `probe-rs` instead of UF2:
+
+```bash
+cargo install probe-rs-tools
+probe-rs run --chip RP2040 target/thumbv6m-none-eabi/release/rfm69
+```
+
+`probe-rs run` halts the target on a panic and prints the decoded panic
+message; UF2 flashing has no equivalent. To also forward driver-internal logs
+through this transport, additionally enable the driver's `defmt` feature
+(already on in the examples).
+
+[Raspberry Pi Debug Probe]: https://www.raspberrypi.com/products/debug-probe/
+
 ## License
 
 This work is licensed under the GNU Affero General Public License v3.0 only

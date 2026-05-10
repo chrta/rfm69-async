@@ -67,9 +67,9 @@ where
         self.delay.delay_ms(10).await;
         self.reset.set_low().map_err(Error::Reset)?;
         self.delay.delay_ms(10).await;
-        log::debug!("Reading version register...");
+        debug!("Reading version register...");
         let version = self.read_register(Register::Version).await?;
-        log::debug!("Version: {version:#x}");
+        debug!("Version: {:#x}", version);
         if version == VERSION_CHECK {
             self.set_mode(OpMode::Sleep).await?;
             Ok(())
@@ -272,7 +272,7 @@ where
         }
 
         let mode = self.read_register(Register::OpMode).await?;
-        log::debug!("OpMode 0x{:02x}", mode);
+        debug!("OpMode 0x{:02x}", mode);
 
         self.set_mode(OpMode::Standby).await?;
         self.delay.delay_ms(1).await;
@@ -283,7 +283,7 @@ where
             let mode = self.read_register(Register::OpMode).await?;
             let irq1 = self.read_register(Register::IrqFlags1).await?;
             let irq2 = self.read_register(Register::IrqFlags2).await?;
-            log::info!("OM 0x{:02x} - Irq1 0x{:02x} - Irq2 0x{:02x}", mode, irq1, irq2);
+            info!("OM 0x{:02x} - Irq1 0x{:02x} - Irq2 0x{:02x}", mode, irq1, irq2);
         }
 
         self.reset_fifo().await?;
@@ -302,7 +302,7 @@ where
                 //Timer::after(Duration::from_micros(500_u64)).await;
             }
         }
-        log::debug!("Packet Sent");
+        debug!("Packet Sent");
 
         self.set_mode(OpMode::Standby).await
     }
@@ -336,7 +336,7 @@ where
 
         let packet = Packet::from_rx_data(len, &buffer, rssi).map_err(|_| Error::WrongPacketFormat)?;
 
-        log::debug!("Rx: Rssi {}; Len {}", rssi, len);
+        debug!("Rx: Rssi {}; Len {}", rssi, len);
 
         Ok(packet)
     }

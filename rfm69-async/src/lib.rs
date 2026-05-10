@@ -2,6 +2,9 @@
 
 #![no_std]
 
+#[macro_use]
+mod fmt;
+
 mod address;
 pub mod config;
 mod error;

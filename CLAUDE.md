@@ -19,11 +19,14 @@ The driver compiles cleanly on stable Rust — no `#![feature(...)]` gates anywh
 
 The driver uses **`embedded-hal = "1"` and `embedded-hal-async = "1"`** (1.0 stable), plus `heapless = "0.9"`. The optional `embassy-time = "0.5"` is gated behind the `embassy` feature. The examples crate is on the released embassy 0.10 stack (`embassy-rp 0.10`, `embassy-executor 0.10`, etc.) — there is **no** `[patch.crates-io]` block; everything resolves to crates.io releases.
 
-The driver crate ships two cargo features:
+The driver crate ships three cargo features (no defaults — callers opt in):
 - `embassy` — pulls in `embassy-time` and enables the `mac` module (timeout/retry logic uses `with_timeout`).
-- `defmt` — adds `defmt::Format` derives on `Address`, `Flags`, `Packet`, `Error`, and pulls in `defmt = "1"` plus `heapless/defmt`.
+- `log` — pulls in `log = "0.4"` and routes the driver's internal logging macros through it. Required to see driver-internal logs over the embassy USB CDC logger workflow used by the examples.
+- `defmt` — adds `defmt::Format` derives on `Address`, `Flags`, `Packet`, `Error`, pulls in `defmt = "1"` plus `heapless/defmt`, and routes the driver's internal logging macros through `defmt::*`. Required for the defmt-rtt / probe-rs workflow.
 
-The examples crate enables both: `rfm69-async = { ..., features = ["embassy", "defmt"] }`.
+The internal logging is implemented in `src/fmt.rs` (`info!` / `debug!` / `warn!` / `error!`). Call sites in the driver use the bare names — never `log::info!` directly. With both `log` and `defmt` enabled, both backends fire (mirrors the embassy-net pattern); with neither enabled the macros expand to a no-op that still consumes its arguments to avoid `unused_variables` warnings.
+
+The examples crate enables all three: `rfm69-async = { ..., features = ["embassy", "defmt", "log"] }` — `log` for the USB-CDC serial workflow, `defmt` for the optional probe-rs / SWD workflow.
 
 ## Common commands
 
