@@ -30,4 +30,6 @@ jobs:
       run: cargo test --verbose --features embassy
     - name: Build docs
       working-directory: ./rfm69-async
-      run: cargo doc --verbose
+      # Mirror the docs.rs build config (package.metadata.docs.rs) so the
+      # rendered output matches what users see on docs.rs.
+      run: cargo doc --verbose --all-features
