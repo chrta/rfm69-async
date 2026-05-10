@@ -11,9 +11,19 @@ This is a two-crate Cargo setup, NOT a workspace:
 
 Each directory has its own `Cargo.toml` and `Cargo.lock`. Cargo commands must be run from the appropriate subdirectory; there is no top-level `Cargo.toml`.
 
-The toolchain is pinned in `rust-toolchain.toml` to a specific nightly (`nightly-2023-06-17`) with target `thumbv6m-none-eabi`. Both crates rely on nightly features (`type_alias_impl_trait`); do not change channel lightly.
+Toolchain layout:
+- The driver crate (`rfm69-async/`) declares its MSRV via `rust-version = "1.87"` in `Cargo.toml`. The 1.87 floor is set by `heapless = "0.9"` (the rest of our deps are below 1.87). The driver has no `rust-toolchain.toml` and no target requirement — it builds on whatever stable users have, host or cross.
+- The examples crate (`examples/rp/`) carries its own `rust-toolchain.toml` pinned to `1.95.0` and the `thumbv6m-none-eabi` target. Pinning is for hardware-build reproducibility against the embassy 0.10 stack; bump in lockstep with embassy-rp / `fixed` releases when needed. Lowest known-good is 1.93 (transitive `fixed = 1.31` requires it).
 
-Note the unusual pre-1.0 dependency pins: `embedded-hal = "=1.0.0-alpha.10"` and `embedded-hal-async = "0.2.0-alpha.1"`. The example crate also `[patch.crates-io]`-pins all `embassy-*` crates to the embassy `main` git branch — when those branches move, examples may break independently of the driver.
+The driver compiles cleanly on stable Rust — no `#![feature(...)]` gates anywhere. Earlier history used `nightly-2023-06-17` + `type_alias_impl_trait`; that's gone.
+
+The driver uses **`embedded-hal = "1"` and `embedded-hal-async = "1"`** (1.0 stable), plus `heapless = "0.9"`. The optional `embassy-time = "0.5"` is gated behind the `embassy` feature. The examples crate is on the released embassy 0.10 stack (`embassy-rp 0.10`, `embassy-executor 0.10`, etc.) — there is **no** `[patch.crates-io]` block; everything resolves to crates.io releases.
+
+The driver crate ships two cargo features:
+- `embassy` — pulls in `embassy-time` and enables the `mac` module (timeout/retry logic uses `with_timeout`).
+- `defmt` — adds `defmt::Format` derives on `Address`, `Flags`, `Packet`, `Error`, and pulls in `defmt = "1"` plus `heapless/defmt`.
+
+The examples crate enables both: `rfm69-async = { ..., features = ["embassy", "defmt"] }`.
 
 ## Common commands
 
@@ -25,14 +35,17 @@ cd rfm69-async
 cargo build
 cargo clippy
 cargo fmt --check
-cargo test       # host tests, no target flag
+cargo test            # host tests, no target flag
 cargo doc
+cargo build --features defmt   # also exercise the defmt-gated derives
+cargo build --features embassy # exercise the optional MAC layer
 
-# Examples (RP2040, requires the thumbv6m-none-eabi target installed by rust-toolchain.toml)
+# Examples (RP2040; the thumbv6m-none-eabi target is in rust-toolchain.toml)
 cd examples/rp
 cargo build
 cargo clippy
 cargo fmt --check
+cargo build --release --bin rfm69   # the README's flashing path
 ```
 
 Build a single example binary and flash to a Pico in BOOTSEL mode:
@@ -45,7 +58,7 @@ elf2uf2-rs -d target/thumbv6m-none-eabi/release/rfm69
 
 Available example bins live in `examples/rp/src/bin/`: `rfm69`, `echo_client`, `echo_server`, `blinky`.
 
-`rustfmt.toml` enforces `group_imports = "StdExternalCrate"`, `imports_granularity = "Module"`, `max_width = 120`. The VS Code config sets `rust-analyzer.cargo.target = "thumbv6m-none-eabi"` and points `linkedProjects` at `examples/rp/Cargo.toml` by default.
+`rustfmt.toml` only sets `max_width = 120`. The previously-configured `group_imports` and `imports_granularity` were nightly-only and got dropped along with the toolchain bump. The VS Code config sets `rust-analyzer.cargo.target = "thumbv6m-none-eabi"` and points `linkedProjects` at `examples/rp/Cargo.toml` by default.
 
 ## Commit messages
 
@@ -66,7 +79,7 @@ Available example bins live in `examples/rp/src/bin/`: `rfm69`, `echo_client`, `
 
 `lib.rs` re-exports the public surface: `Rfm69`, `Address`, `Flags`, `Packet`, `Error`, plus the `config` and `mac` modules.
 
-The `Rfm69<SPI, RESET, DIO0, DELAY>` struct in `rfm.rs` is the low-level transceiver. It is fully generic over `embedded-hal-async` traits (`SpiDevice`, `OutputPin`, `InputPin + Wait`, `DelayUs`) so it is not tied to any HAL. Two operating styles are supported:
+The `Rfm69<SPI, RESET, DIO0, DELAY>` struct in `rfm.rs` is the low-level transceiver. It is fully generic over `embedded-hal-async` 1.0 traits (`SpiDevice`, `OutputPin`, `InputPin + Wait`, `DelayNs`) so it is not tied to any HAL. Two operating styles are supported:
 
 - **DIO0 connected (preferred)** — `send`/`recv` await `dio0.wait_for_high()` for hardware-driven `PacketSent` / `PayloadReady` events. Before each operation, `send` writes `DioMapping1 = 0x00` (PacketSent on DIO0) and `recv` writes `0x40` (PayloadReady on DIO0).
 - **DIO0 absent** — `dio0` field is `None` and the driver polls `IrqFlags2` instead. Pass `None::<SomeConcretePin>` at construction.
@@ -102,4 +115,4 @@ Both consume the `Rfm69` by value and return it, so the call site pattern is `le
 
 ### Error type
 
-`Error<SPI, RESET, DIO0>` is generic over the three peripheral error types. The `mac` module wraps it again as `TxError` to add `AckTimeout`. Both derive `defmt::Format` under the (currently undeclared in `Cargo.toml` — careful when adding) `defmt` feature; `Address`, `Flags`, and `Packet` do too.
+`Error<SPI, RESET, DIO0>` is generic over the three peripheral error types. The `mac` module wraps it again as `TxError` to add `AckTimeout`. Both derive `defmt::Format` under the (now properly declared) `defmt` feature; `Address`, `Flags`, and `Packet` do too. Enabling `defmt` requires `heapless/defmt` to be enabled — the cargo `defmt = ["dep:defmt", "heapless/defmt"]` line in `Cargo.toml` does this — because `Packet::data: Vec<u8, 61>` needs the heapless side to provide the `Format` impl.

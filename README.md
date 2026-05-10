@@ -33,6 +33,23 @@ For example:
 cargo build --bin rfm69 --release
 ```
 
+- Put the Pico in BOOTSEL mode
+
+Hold the **BOOTSEL** button while plugging the USB cable in (or, if it is already
+plugged in, hold **BOOTSEL** and tap **RESET**). The board enumerates as a USB
+mass-storage device named `RPI-RP2`.
+
+- Ensure the `RPI-RP2` volume is mounted
+
+`elf2uf2-rs -d` looks at the mount table to find the Pico, so simply having the
+device appear in `dmesg` / `lsblk` is not enough — it must actually be mounted.
+On desktops with auto-mount this happens automatically; on minimal setups mount
+it manually, e.g.:
+
+```bash
+udisksctl mount -b /dev/sda1     # adjust device per `lsblk`
+```
+
 - Flash the example
 
 For example:

@@ -1,0 +1,12 @@
+# Pinned for reproducibility against the embassy 0.10 stack the bins are
+# tested with. Lowest known-good is 1.93 (transitive `fixed = "1.31"`
+# requires it); 1.95 is the floor we actually run CI / hardware tests
+# against. Bump in lockstep with the embassy-rp / fixed releases.
+#
+# Scoped to examples/rp so building the driver crate (`cd rfm69-async &&
+# cargo build`) doesn't force a toolchain switch on consumers; the
+# driver declares its MSRV via `rust-version` in Cargo.toml instead.
+[toolchain]
+channel = "1.95.0"
+components = ["rust-src", "rustfmt", "llvm-tools-preview", "clippy"]
+targets = ["thumbv6m-none-eabi"]
