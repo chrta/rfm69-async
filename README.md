@@ -122,6 +122,11 @@ through this transport, additionally enable the driver's `defmt` feature
 
 [Raspberry Pi Debug Probe]: https://www.raspberrypi.com/products/debug-probe/
 
+## Changelog
+
+User-visible changes are tracked in [`rfm69-async/CHANGELOG.md`](rfm69-async/CHANGELOG.md),
+following the [Keep a Changelog](https://keepachangelog.com/) format.
+
 ## License
 
 This work is licensed under the GNU Affero General Public License v3.0 only
