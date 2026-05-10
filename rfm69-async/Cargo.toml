@@ -38,3 +38,59 @@ defmt = { version = "1", optional = true }
 embassy-time = { version = "0.5", optional = true }
 embassy-sync = { version = "0.8", optional = true }
 embassy-futures = { version = "0.1", optional = true }
+
+[dev-dependencies]
+# Host-side test infrastructure for the Stack/Runner integration tests in
+# tests/. The mock-driver lets `with_timeout` / `Timer::after` resolve under
+# our control, and critical-section's std impl plugs the gap that the host
+# build leaves (no MCU CAS implementation).
+# `generic-queue-16` provides a self-contained timer queue so we don't pull
+# in a full embassy-executor (which would otherwise be needed to define
+# `__embassy_time_queue_item_from_waker`).
+embassy-time = { version = "0.5", features = ["mock-driver", "generic-queue-16"] }
+critical-section = { version = "1", features = ["std"] }
+futures = "0.3"
+
+# Each integration test binary lives in tests/ as its own .rs file (Cargo
+# compiles one process per top-level tests/*.rs). Splitting one test per
+# binary isolates global state — the static `embassy_time::MockDriver` and
+# the `generic-queue-16` timer queue — between scenarios; combining them
+# into one binary deadlocked once 3+ tests ran in sequence. Each entry is
+# gated on the `embassy` feature: without it Stack / Runner aren't even
+# compiled. Shared fixtures live in tests/common/mod.rs (subdirectories
+# aren't auto-built by Cargo, so they don't need their own [[test]]).
+[[test]]
+name = "send_no_ack"
+required-features = ["embassy"]
+
+[[test]]
+name = "send_ack_zero"
+required-features = ["embassy"]
+
+[[test]]
+name = "send_ack_completes"
+required-features = ["embassy"]
+
+[[test]]
+name = "send_ack_timeout"
+required-features = ["embassy"]
+
+[[test]]
+name = "recv_unicast"
+required-features = ["embassy"]
+
+[[test]]
+name = "recv_filters_unicast"
+required-features = ["embassy"]
+
+[[test]]
+name = "recv_broadcast"
+required-features = ["embassy"]
+
+[[test]]
+name = "recv_acks_unicast"
+required-features = ["embassy"]
+
+[[test]]
+name = "recv_broadcast_no_ack"
+required-features = ["embassy"]
