@@ -19,6 +19,13 @@ categories = [
 ]
 keywords = ["rfm69", "radio", "transceiver", "embedded-hal", "embassy"]
 
+# docs.rs serves the rendered rustdoc for our crate; build with every
+# feature so the Stack/Runner/LinkState surface (embassy-gated) appears
+# alongside the bare Rfm69 docs. The local CI mirrors this — see
+# .github/workflows/rust.yml.
+[package.metadata.docs.rs]
+all-features = true
+
 [features]
 # No default features: callers opt into a logging backend. Enable `log` for
 # the standard `log` facade (e.g. when piping output via embassy-usb-logger
