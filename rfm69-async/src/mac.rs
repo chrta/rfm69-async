@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 #[cfg(feature = "embassy")]
 use embassy_time::{with_timeout, Duration, Timer};
 use embedded_hal_1::digital::{InputPin, OutputPin};

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //! Register addresses and content helpers for the rfm69
 
 /// RFM69 register addresses

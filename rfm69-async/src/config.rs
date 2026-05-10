@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //! Configurations that are available to initialize the rfm69
 
 use embedded_hal_1::digital::{InputPin, OutputPin};

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 use embedded_hal_1::digital::{InputPin, OutputPin};
 use embedded_hal_1::spi::Operation;
 use embedded_hal_async::delay::DelayUs;
