@@ -11,6 +11,17 @@ Examples are found in the `examples/` folder separated by the chip manufacturer 
 
 *   `examples/rp` are for the RP2040 chip.
 
+The RP2040 binaries are:
+
+*   `blinky` — board sanity check; no radio involved.
+*   `rfm69` — single-task send/receive loop.
+*   `echo_client` and `echo_server` — paired roles for round-trip testing
+    over two boards: client sends, server echoes back.
+*   `concurrent_demo` — splits send and receive across independent embassy
+    tasks driven by a single radio Runner. Headline feature of the
+    `Stack` / `Runner` API: user tasks call `stack.send()` and
+    `stack.recv()` concurrently with no manual rx/tx interleaving.
+
 ### Running examples
 
 - Install tools to debug/flash the firmware. For example to flash the firmware to the rpi pico via USB:
