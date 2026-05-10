@@ -25,6 +25,9 @@ jobs:
     - name: Run tests
       working-directory: ./rfm69-async
       run: cargo test --verbose
+    - name: Run Stack/Runner integration tests
+      working-directory: ./rfm69-async
+      run: cargo test --verbose --features embassy
     - name: Build docs
       working-directory: ./rfm69-async
       run: cargo doc --verbose

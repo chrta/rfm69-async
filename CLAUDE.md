@@ -39,6 +39,7 @@ cargo build
 cargo clippy
 cargo fmt --check
 cargo test            # host tests, no target flag
+cargo test --features embassy   # host tests + Stack/Runner integration bins
 cargo doc
 cargo build --features defmt   # also exercise the defmt-gated derives
 cargo build --features embassy # exercise the optional MAC layer
@@ -136,3 +137,9 @@ Both consume the `Rfm69` by value and return it, so the call site pattern is `le
 ### Error type
 
 `Error<SPI, RESET, DIO0>` is generic over the three peripheral error types. The `stack` module wraps it again as `TxError` (private) to add `AckTimeout`. The `Transceiver`/`Stack` boundary uses `TrxError` (lossy, in `traits.rs`). `Error` derives `defmt::Format` under the `defmt` feature; `Address`, `Flags`, `Packet`, and `TrxError` do too. Enabling `defmt` requires `heapless/defmt` to be enabled — the cargo `defmt = ["dep:defmt", "heapless/defmt"]` line in `Cargo.toml` does this — because `Packet::data: Vec<u8, 61>` needs the heapless side to provide the `Format` impl.
+
+### Tests
+
+Host unit tests live next to their modules (`address.rs`, `flags.rs`, `packet.rs`) and run on plain `cargo test` with no extra features.
+
+Stack/Runner integration tests live in `rfm69-async/tests/*.rs` and run on `cargo test --features embassy`. Each top-level `tests/*.rs` is a separate test binary — Cargo compiles one process per file. That isolation is deliberate: `embassy_time::MockDriver` and the `generic-queue-16` timer queue are global statics that don't reset cleanly between in-process tests. Shared fixtures (the `MockTrx` Transceiver impl, the `run_test` driver, `pace_time` / `yield_now` helpers) live in `tests/common/mod.rs`; subdirectories under `tests/` aren't auto-built by Cargo, so they don't need a `[[test]]` entry. Each top-level test file does need its own `[[test]]` block with `required-features = ["embassy"]` — without it Stack / Runner aren't compiled.

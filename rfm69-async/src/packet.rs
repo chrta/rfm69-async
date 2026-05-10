@@ -12,7 +12,7 @@ pub enum PacketError {
 }
 
 /// Packet that can be sent and received
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Packet {
     pub src: Address,
