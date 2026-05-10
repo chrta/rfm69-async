@@ -6,42 +6,31 @@ license = "AGPL-3.0-only"
 
 
 [dependencies]
-embassy-embedded-hal = { version = "0.1.0", features = ["defmt"] }
-embassy-sync = { version = "0.2.0", features = ["defmt"] }
-embassy-executor = { version = "0.2.0", features = ["nightly", "arch-cortex-m", "executor-thread", "defmt", "integrated-timers"] }
-embassy-time = { version = "0.1.0", features = ["defmt", "defmt-timestamp-uptime", "unstable-traits", "nightly"] }
-embassy-rp = { version = "0.1.0", features = ["defmt", "unstable-traits", "nightly", "unstable-pac", "time-driver", "critical-section-impl"] }
-embassy-usb = { version = "0.1.0", features = ["defmt"] }
-embassy-futures = { version = "0.1.0" }
-embassy-usb-logger = { version = "0.1.0" }
-rfm69-async = { version = "0.0.2", features = ["embassy"], path = "../../rfm69-async" }
+embassy-embedded-hal = { version = "0.6", features = ["defmt"] }
+embassy-sync = { version = "0.8", features = ["defmt"] }
+embassy-executor = { version = "0.10", features = ["platform-cortex-m", "executor-thread", "defmt"] }
+embassy-time = { version = "0.5", features = ["defmt", "defmt-timestamp-uptime"] }
+embassy-rp = { version = "0.10", features = ["defmt", "rp2040", "unstable-pac", "time-driver", "critical-section-impl"] }
+embassy-usb = { version = "0.6", features = ["defmt"] }
+embassy-futures = "0.1"
+embassy-usb-logger = "0.6"
+rfm69-async = { version = "0.0.2", features = ["embassy", "defmt"], path = "../../rfm69-async" }
 
-defmt = "0.3"
-defmt-rtt = "0.4"
+defmt = "1"
+defmt-rtt = "1"
 
-#cortex-m = { version = "0.7.6", features = ["critical-section-single-core"] }
-cortex-m = { version = "0.7.6" }
-cortex-m-rt = "0.7.0"
-panic-probe = { version = "0.3", features = ["print-defmt"] }
-futures = { version = "0.3.17", default-features = false, features = ["async-await", "cfg-target-has-atomic", "unstable"] }
-byte-slice-cast = { version = "1.2.0", default-features = false }
+cortex-m = "0.7.7"
+cortex-m-rt = "0.7"
+panic-probe = { version = "1", features = ["print-defmt"] }
 
-embedded-hal-1 = { package = "embedded-hal", version = "=1.0.0-alpha.10" }
-embedded-hal-async = "0.2.0-alpha.1"
-embedded-io = { version = "0.4.0", features = ["async", "defmt"] }
-embedded-storage = { version = "0.3" }
-static_cell = "1.0.0"
+embedded-hal = "1"
+embedded-hal-async = "1"
+static_cell = "2"
 log = "0.4"
 
-[patch.crates-io]
-embassy-embedded-hal = { git = "https://github.com/embassy-rs/embassy.git", branch = "main" }
-embassy-sync = { git = "https://github.com/embassy-rs/embassy.git", branch = "main" }
-embassy-executor = { git = "https://github.com/embassy-rs/embassy.git", branch = "main" }
-embassy-time = { git = "https://github.com/embassy-rs/embassy.git", branch = "main" }
-embassy-rp = { git = "https://github.com/embassy-rs/embassy.git", branch = "main" }
-embassy-usb = { git = "https://github.com/embassy-rs/embassy.git", branch = "main" }
-embassy-futures = { git = "https://github.com/embassy-rs/embassy.git", branch = "main" }
-embassy-usb-logger = { git = "https://github.com/embassy-rs/embassy.git", branch = "main" }
+# thumbv6m has no native CAS; route portable-atomic through the
+# critical-section impl provided by embassy-rp's `critical-section-impl`.
+portable-atomic = { version = "1", features = ["critical-section"] }
 
 [profile.release]
 debug = true
