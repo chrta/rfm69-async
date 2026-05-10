@@ -51,8 +51,32 @@
 //! from [`crate::traits`]) -- a fixed, lossy error vocabulary. The
 //! parametric [`crate::Error`] is collapsed at the [`Transceiver`] boundary.
 //! See the [`TrxError`] rustdoc for the rationale.
+//!
+//! # Link state
+//!
+//! The Runner publishes a coarse health flag mirroring `embassy-net`'s
+//! `LinkState`:
+//!
+//! - default [`LinkState::Up`] on construction (the caller hands the Runner
+//!   an already-configured radio);
+//! - flips to [`LinkState::Down`] after [`LINK_DOWN_STREAK`] consecutive
+//!   `TrxError`s on any radio operation (rx, tx, ACK reply, ACK wait);
+//! - flips back to [`LinkState::Up`] on the first subsequent success.
+//!
+//! User code observes via [`Stack::link_state`] / [`Stack::is_link_up`]
+//! (sync) or [`Stack::wait_link_up`] / [`Stack::wait_link_down`] (async).
+//! Only one task may be waiting in each `wait_*` future at a time —
+//! multi-waiter fan-out is deferred; build a relay task with
+//! `embassy_sync::pubsub` if you need it.
+//!
+//! Active recovery (driving `RESET` and rerunning a `config::*` helper) is
+//! out of scope; `LinkState` is observation only. Reaction policy is up to
+//! the caller (watchdog reset, escalate, etc).
+
+use core::cell::Cell;
 
 use embassy_futures::select::{Either, select};
+use embassy_sync::blocking_mutex::Mutex as BlockingMutex;
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::channel::{Channel, DynamicReceiver, DynamicSender};
 use embassy_sync::mutex::Mutex;
@@ -64,6 +88,24 @@ use crate::{Address, Flags, Packet, Transceiver, TrxError};
 
 /// Maximum payload bytes that fit on the wire (matches the `Packet` MTU).
 const PAYLOAD_CAP: usize = 61;
+
+/// Number of consecutive `TrxError`s on any radio operation that flips
+/// [`LinkState`] from `Up` to `Down`. The next successful operation flips
+/// it back to `Up`.
+pub const LINK_DOWN_STREAK: u8 = 3;
+
+/// Coarse health flag for the radio, observed via [`Stack`].
+///
+/// Mirrors `embassy-net::LinkState` semantics: not a per-error report, just
+/// "the radio is broadly working" (`Up`) or "we've seen a streak of failures"
+/// (`Down`). See the module-level docs for the exact transition rules.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum LinkState {
+    #[default]
+    Up,
+    Down,
+}
 
 /// Errors returned by [`Stack::send`].
 #[derive(Debug)]
@@ -129,6 +171,15 @@ pub struct StackResources<const N_RX: usize = 4> {
     tx_request: Channel<NoopRawMutex, TxRequest, 1>,
     tx_response: Signal<NoopRawMutex, Result<(), TxError>>,
     tx_mutex: Mutex<NoopRawMutex, ()>,
+    /// Current link state. Wrapped in a blocking mutex so [`Stack`] can read
+    /// it synchronously (the `NoopRawMutex` is a no-op on a single executor).
+    link_state: BlockingMutex<NoopRawMutex, Cell<LinkState>>,
+    /// Wakes async observers (`wait_link_up` / `wait_link_down`) on every
+    /// state transition. Only the most-recent transition is retained, so a
+    /// task that holds neither future across a flap may miss intermediate
+    /// values; the looping wait_* methods re-check the cell after each
+    /// signal to converge on the goal state.
+    link_state_signal: Signal<NoopRawMutex, LinkState>,
 }
 
 impl<const N_RX: usize> StackResources<N_RX> {
@@ -138,6 +189,8 @@ impl<const N_RX: usize> StackResources<N_RX> {
             tx_request: Channel::new(),
             tx_response: Signal::new(),
             tx_mutex: Mutex::new(()),
+            link_state: BlockingMutex::new(Cell::new(LinkState::Up)),
+            link_state_signal: Signal::new(),
         }
     }
 }
@@ -156,6 +209,8 @@ pub struct Stack<'a> {
     tx_request: DynamicSender<'a, TxRequest>,
     tx_response: &'a Signal<NoopRawMutex, Result<(), TxError>>,
     tx_mutex: &'a Mutex<NoopRawMutex, ()>,
+    link_state: &'a BlockingMutex<NoopRawMutex, Cell<LinkState>>,
+    link_state_signal: &'a Signal<NoopRawMutex, LinkState>,
 }
 
 /// Long-running task that owns the radio. Spawn it once; call its
@@ -167,6 +222,9 @@ pub struct Runner<'a, TRX> {
     tx_request: DynamicReceiver<'a, TxRequest>,
     tx_response: &'a Signal<NoopRawMutex, Result<(), TxError>>,
     timing: MacTiming,
+    link_state: &'a BlockingMutex<NoopRawMutex, Cell<LinkState>>,
+    link_state_signal: &'a Signal<NoopRawMutex, LinkState>,
+    consecutive_errors: u8,
 }
 
 impl<'a> Stack<'a> {
@@ -184,13 +242,22 @@ impl<'a> Stack<'a> {
             tx_request,
             tx_response,
             tx_mutex,
+            link_state,
+            link_state_signal,
         } = resources;
+        // Reset link state to a known-good baseline in case the resources
+        // were reused (e.g. a `static StackResources` reconstructed in a
+        // test harness). New construction sees this no-op.
+        link_state.lock(|c| c.set(LinkState::Up));
+        link_state_signal.reset();
         let stack = Stack {
             address,
             rx: rx.dyn_receiver(),
             tx_request: tx_request.dyn_sender(),
             tx_response,
             tx_mutex,
+            link_state,
+            link_state_signal,
         };
         let runner = Runner {
             trx,
@@ -199,6 +266,9 @@ impl<'a> Stack<'a> {
             tx_request: tx_request.dyn_receiver(),
             tx_response,
             timing,
+            link_state,
+            link_state_signal,
+            consecutive_errors: 0,
         };
         (stack, runner)
     }
@@ -206,6 +276,44 @@ impl<'a> Stack<'a> {
     /// The local address this Stack was constructed with.
     pub fn address(&self) -> Address {
         self.address
+    }
+
+    /// Current snapshot of the radio link state. See module-level docs for
+    /// the transition rules.
+    pub fn link_state(&self) -> LinkState {
+        self.link_state.lock(|c| c.get())
+    }
+
+    /// `true` iff [`Stack::link_state`] is [`LinkState::Up`].
+    pub fn is_link_up(&self) -> bool {
+        matches!(self.link_state(), LinkState::Up)
+    }
+
+    /// Resolves when the link state is (or becomes) [`LinkState::Up`].
+    /// Returns immediately if already up.
+    ///
+    /// Only one task may hold this future at a time; running it in two
+    /// tasks concurrently is undefined (one will be woken on the next
+    /// transition, the other can stay parked).
+    pub async fn wait_link_up(&self) {
+        loop {
+            if matches!(self.link_state(), LinkState::Up) {
+                return;
+            }
+            let _ = self.link_state_signal.wait().await;
+        }
+    }
+
+    /// Resolves when the link state is (or becomes) [`LinkState::Down`].
+    /// Returns immediately if already down. Same single-waiter caveat as
+    /// [`Stack::wait_link_up`].
+    pub async fn wait_link_down(&self) {
+        loop {
+            if matches!(self.link_state(), LinkState::Down) {
+                return;
+            }
+            let _ = self.link_state_signal.wait().await;
+        }
     }
 
     /// Send `data` to `dst` with the given `flags`. Serialized across all
@@ -248,9 +356,13 @@ impl<'a, TRX: Transceiver> Runner<'a, TRX> {
         loop {
             match select(self.tx_request.receive(), self.trx.recv()).await {
                 Either::First(req) => self.handle_tx(req).await,
-                Either::Second(Ok(packet)) => self.handle_rx(packet).await,
+                Either::Second(Ok(packet)) => {
+                    self.record_ok();
+                    self.handle_rx(packet).await
+                }
                 Either::Second(Err(e)) => {
                     error!("Stack: rx error: {:?}", e);
+                    self.record_err();
                 }
             }
         }
@@ -268,12 +380,27 @@ impl<'a, TRX: Transceiver> Runner<'a, TRX> {
         match req.flags {
             Flags::None | Flags::Ack(0) => {
                 info!("Stack: send (no ack)");
-                self.trx.send(&packet).await.map_err(TxError::Trx)
+                match self.trx.send(&packet).await {
+                    Ok(()) => {
+                        self.record_ok();
+                        Ok(())
+                    }
+                    Err(e) => {
+                        self.record_err();
+                        Err(TxError::Trx(e))
+                    }
+                }
             }
             Flags::Ack(retries) => {
                 for i in 1..=retries {
                     info!("Stack: send {} of {} (waiting ACK)", i, retries);
-                    self.trx.send(&packet).await.map_err(TxError::Trx)?;
+                    match self.trx.send(&packet).await {
+                        Ok(()) => self.record_ok(),
+                        Err(e) => {
+                            self.record_err();
+                            return Err(TxError::Trx(e));
+                        }
+                    }
                     match with_timeout(self.timing.ack_timeout, self.wait_for_ack(req.dst)).await {
                         Ok(Ok(())) => return Ok(()),
                         Ok(Err(e)) => return Err(TxError::Trx(e)),
@@ -291,7 +418,16 @@ impl<'a, TRX: Transceiver> Runner<'a, TRX> {
     /// doesn't lose user traffic during a TX.
     async fn wait_for_ack(&mut self, from: Address) -> Result<(), TrxError> {
         loop {
-            let packet = self.trx.recv().await?;
+            let packet = match self.trx.recv().await {
+                Ok(p) => {
+                    self.record_ok();
+                    p
+                }
+                Err(e) => {
+                    self.record_err();
+                    return Err(e);
+                }
+            };
             if packet.src == from && packet.dst == self.address && packet.is_ack() {
                 info!("Stack: valid ACK");
                 return Ok(());
@@ -315,12 +451,50 @@ impl<'a, TRX: Transceiver> Runner<'a, TRX> {
             };
             info!("Stack: replying ACK");
             Timer::after(self.timing.ack_tx_delay).await;
-            if let Err(e) = self.trx.send(&ack).await {
-                error!("Stack: ACK send failed: {:?}", e);
-                return;
+            match self.trx.send(&ack).await {
+                Ok(()) => self.record_ok(),
+                Err(e) => {
+                    error!("Stack: ACK send failed: {:?}", e);
+                    self.record_err();
+                    return;
+                }
             }
         }
         self.try_deliver(packet);
+    }
+
+    /// Reset the consecutive-error streak and, if the link was previously
+    /// reported `Down`, flip it back to `Up` and signal observers.
+    fn record_ok(&mut self) {
+        self.consecutive_errors = 0;
+        let was_down = self.link_state.lock(|c| {
+            let prev = c.get();
+            c.set(LinkState::Up);
+            matches!(prev, LinkState::Down)
+        });
+        if was_down {
+            info!("Stack: link up");
+            self.link_state_signal.signal(LinkState::Up);
+        }
+    }
+
+    /// Bump the consecutive-error streak; on crossing [`LINK_DOWN_STREAK`]
+    /// flip the link state to `Down` (idempotent across subsequent errors)
+    /// and signal observers exactly once per `Up`->`Down` transition.
+    fn record_err(&mut self) {
+        self.consecutive_errors = self.consecutive_errors.saturating_add(1);
+        if self.consecutive_errors < LINK_DOWN_STREAK {
+            return;
+        }
+        let was_up = self.link_state.lock(|c| {
+            let prev = c.get();
+            c.set(LinkState::Down);
+            matches!(prev, LinkState::Up)
+        });
+        if was_up {
+            warn!("Stack: link down after {} consecutive errors", LINK_DOWN_STREAK);
+            self.link_state_signal.signal(LinkState::Down);
+        }
     }
 
     /// Push to the user rx queue if the packet is addressed to us
