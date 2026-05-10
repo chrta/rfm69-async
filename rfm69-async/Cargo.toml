@@ -50,6 +50,10 @@ embassy-futures = { version = "0.1", optional = true }
 embassy-time = { version = "0.5", features = ["mock-driver", "generic-queue-16"] }
 critical-section = { version = "1", features = ["std"] }
 futures = "0.3"
+# Bus-level SPI/GPIO/Delay mocking for the wire-level regression tests in
+# tests/spi_protocol.rs. The `embedded-hal-async` feature flips on the async
+# trait impls (SpiDevice, Wait, DelayNs) used by the driver.
+embedded-hal-mock = { version = "0.11", features = ["embedded-hal-async"] }
 
 # Each integration test binary lives in tests/ as its own .rs file (Cargo
 # compiles one process per top-level tests/*.rs). Splitting one test per
@@ -110,3 +114,9 @@ required-features = ["embassy"]
 [[test]]
 name = "link_state_below_threshold_stays_up"
 required-features = ["embassy"]
+
+# Wire-level SPI register-sequence regression tests. Built unconditionally:
+# they exercise `Rfm69` directly (no Stack/Runner), so the embassy feature
+# isn't needed.
+[[test]]
+name = "spi_protocol"
