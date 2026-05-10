@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 /// Error for rfm69 transceiver
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug)]

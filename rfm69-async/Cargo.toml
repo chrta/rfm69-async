@@ -2,7 +2,7 @@
 name = "rfm69-async"
 version = "0.0.2"
 edition = "2021"
-license = "MIT OR Apache-2.0"
+license = "AGPL-3.0-only"
 description = "async driver for the rfm69 radio transceiver"
 repository = "https://github.com/chrta/rfm69-async"
 categories = [

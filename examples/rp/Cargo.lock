@@ -1107,7 +1107,7 @@ checksum = "436b050e76ed2903236f032a59761c1eb99e1b0aead2c257922771dab1fc8c78"
 
 [[package]]
 name = "rfm69-async"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "embassy-time",
  "embedded-hal 1.0.0-alpha.10",

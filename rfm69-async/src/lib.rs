@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 #![no_std]
 #![feature(type_alias_impl_trait)]
 

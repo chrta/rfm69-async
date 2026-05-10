@@ -43,17 +43,26 @@ elf2uf2-rs -d target/thumbv6m-none-eabi/release/rfm69
 
 ## License
 
-This work is licensed under either of
+This work is licensed under the GNU Affero General Public License v3.0 only
+([LICENSE](LICENSE) or <https://www.gnu.org/licenses/agpl-3.0.html>).
 
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or
-  <http://www.apache.org/licenses/LICENSE-2.0>)
-- MIT license ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+`SPDX-License-Identifier: AGPL-3.0-only`
 
-at your option.
+A small number of files in `examples/rp/` were copied or adapted from the
+`rp-rs/rp2040-project-template` and `embassy-rs/embassy` projects and remain
+under their original `MIT OR Apache-2.0` licensing; see
+[`licenses/THIRD-PARTY-NOTICES.md`](licenses/THIRD-PARTY-NOTICES.md) for
+details. Each file's effective license is declared in its own
+`SPDX-License-Identifier` header.
+
+Versions `0.0.1` and `0.0.2` were released under the dual `MIT OR Apache-2.0`
+license; that licensing remains in effect for those published versions.
 
 ### Contribution
 
-Any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
+Any contribution intentionally submitted for inclusion in the work by you
+shall be licensed under AGPL-3.0-only, without any additional terms or
+conditions.
 
 ### Credits
 
