@@ -15,8 +15,8 @@ Work that is still pending on `rfm69-async`. T-shirt effort sizes:
 **Wider register coverage.** *(L)*
 `read_all_regs` exists but most setters are missing (e.g. PA, OCP, AFC, encryption / AES key, listen mode, temperature sensor). Add as user requests come in.
 
-**SPI-level mocking via `embedded-hal-mock`.** *(L)*
-Stack-level integration tests already exist (driven by a `MockTrx` that implements the `Transceiver` trait). A separate, lower-level pass would mock the SPI bus directly so `Rfm69::send` / `recv` register sequences are regression-covered. Worth picking up if a Stack-level bug points at SPI register sequences as the cause.
+**SPI-level mocking via `embedded-hal-mock`.** *(M, partial)*
+A first pass exists in `tests/spi_protocol.rs`: it locks the wire-level register sequences for `reset` (success and version mismatch), single read/write, multi-register write (`frequency`), and the `send` / `recv` happy paths in both DIO0-connected and IrqFlags2-polling modes. Still pending: per-setter coverage (every `bit_rate` / `fdev` / `sync` / `packet` / `lna` / etc.) and an SPI-error injection case (blocked on the `SpiTransaction::with_error` builder, which is in `embedded-hal-mock` `main` but not the published 0.11.1 — revisit on the next release).
 
 ---
 
