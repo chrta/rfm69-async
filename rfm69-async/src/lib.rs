@@ -12,11 +12,16 @@ mod flags;
 mod packet;
 mod registers;
 mod rfm;
+mod traits;
 
-pub mod mac;
+#[cfg(feature = "embassy")]
+mod stack;
 
 pub use address::Address;
 pub use error::Error;
 pub use flags::Flags;
 pub use packet::Packet;
 pub use rfm::Rfm69;
+#[cfg(feature = "embassy")]
+pub use stack::{MacTiming, Runner, Stack, StackResources, TxError};
+pub use traits::{Transceiver, TrxError};

@@ -1212,6 +1212,8 @@ name = "rfm69-async"
 version = "0.0.2"
 dependencies = [
  "defmt",
+ "embassy-futures",
+ "embassy-sync",
  "embassy-time",
  "embedded-hal 1.0.0",
  "embedded-hal-async",

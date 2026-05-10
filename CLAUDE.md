@@ -59,7 +59,7 @@ cargo build --bin rfm69 --release
 elf2uf2-rs -d target/thumbv6m-none-eabi/release/rfm69
 ```
 
-Available example bins live in `examples/rp/src/bin/`: `rfm69`, `echo_client`, `echo_server`, `blinky`.
+Available example bins live in `examples/rp/src/bin/`: `rfm69`, `echo_client`, `echo_server`, `blinky`, `concurrent_demo`. The first three drive the radio from `main`'s task using `embassy_futures::join`. `concurrent_demo` instead spawns the runner / rx / tx as three independent embassy tasks — that's the canonical pattern when something needs `Stack<'static>` to be moved across task boundaries, and the worked example for users porting their own apps to the new API.
 
 `rustfmt.toml` only sets `max_width = 120`. The previously-configured `group_imports` and `imports_granularity` were nightly-only and got dropped along with the toolchain bump. The VS Code config sets `rust-analyzer.cargo.target = "thumbv6m-none-eabi"` and points `linkedProjects` at `examples/rp/Cargo.toml` by default.
 
@@ -91,18 +91,35 @@ Internal SPI helpers (`read_register` / `write_register` / `update_register` / `
 
 The cached `mode: OpMode` field MUST be updated through `set_mode`; there are paths (`reset` after version check, `send`/`recv` transitions to Standby) that depend on it.
 
-### MAC layer (`mac.rs`)
+### Transceiver trait (`traits.rs`)
 
-A thin protocol on top of `Rfm69::send`/`recv`. `send_packet` / `receive_packet` / `wait_for_mac_ack` add source/destination addressing, optional ACK with retry-count, and (for `Flags::Ack`) a `with_timeout`-bounded ACK wait + retry loop.
+`Transceiver` is a small async trait with `send(&mut self, &Packet)` and `recv(&mut self)` returning `TrxError` (a lossy enum that collapses `Error<SPI, RESET, DIO0>` for callers that hold a generic `TRX`). `Rfm69<...>` implements it via a blanket impl in `rfm.rs`. The crate-internal `From<Error<...>> for TrxError` (in `error.rs`) does the collapse.
 
-The MAC layer is **gated on `feature = "embassy"`** because it uses `embassy_time::{with_timeout, Timer, Duration}` for timing. The driver core has no such dependency. When editing `mac.rs`, keep all `embassy_time` usage behind `#[cfg(feature = "embassy")]`.
+`async fn in trait` is stable and used directly. The rustc `async_fn_in_trait` lint about unspecified Send-bound on the returned futures is allow-listed at the trait level — embassy on the targets this crate supports is single-executor, so Send isn't needed; if a future user crosses executor threads, they wrap a Send-bound subtrait. `TrxError` deliberately stays lossy (collapsing the parametric `Error<SPI, RESET, DIO0>` at the trait boundary) — see the `TrxError` rustdoc for the reasoning; don't try to thread the parametric error through `Stack` / `Runner`.
+
+### Stack / Runner (`stack.rs`)
+
+The smoltcp-style Stack/Runner split. Public surface:
+
+- `StackResources<const N_RX = 4>` — caller-allocated channel buffers (`Channel<Packet, N_RX>` for rx, `Channel<TxRequest, 1>` + `Signal<Result>` + `Mutex<()>` for tx). `const fn new()` so `static StackResources` works.
+- `Stack<'a>` — `Copy` user-facing handle. Methods: `send(dst, flags, data) -> Result<(), TxError>`, `recv() -> Packet`, `address() -> Address`. Cloneable; pass to multiple tasks.
+- `Runner<'a, TRX: Transceiver>` — owns the radio. `run() -> !` is a `select(tx_request_recv, trx.recv)` loop in `handle_tx`/`handle_rx`. ACK retry/timeout logic lives in `handle_tx` via `MacTiming`.
+- Construction: `Stack::new(trx, address, &mut resources, MacTiming::default()) -> (Stack<'a>, Runner<'a, TRX>)`.
+
+Gated on **`feature = "embassy"`** because it uses `embassy-time` (timing), `embassy-sync` (Channel/Mutex/Signal), and `embassy-futures` (`select`). The whole module is `#[cfg(feature = "embassy")]` in `lib.rs`.
+
+Key implementation invariants worth preserving:
+- `Stack::send` must lock `tx_mutex`, *then* `signal.reset()`, *then* enqueue the request. Reset-then-send under the mutex is the cancellation-safety contract.
+- `Runner::handle_rx` only ACKs when `flags == Flags::Ack(n)` with `n > 0` AND `dst == self.address` (broadcasts never ACK; ACK-with-n=0 is itself an ACK reply, no recursive ACK).
+- `Runner::wait_for_ack` delivers non-ACK packets to the rx queue rather than dropping them, so the ACK race doesn't cost user packets.
+- `try_deliver` uses non-blocking `try_send`; an overflowing rx queue logs a warning and drops, never backpressures the radio.
 
 ACK semantics in `Flags` (`flags.rs`) are subtle:
 - `Flags::Ack(0)` on the wire means "this IS an ACK reply" — receivers don't ACK back.
 - `Flags::Ack(n)` for `n >= 1` means "I want an ACK; sender will retry up to `n` times."
 - The wire encoding adds 1 (`as_u8`) and `from_u8` only decodes values 1..=4; anything else degrades to `Flags::None`.
 
-`receive_packet` only returns packets addressed to `dst` (Unicast match) or `Address::Broadcast` (`0xFF`); other unicast packets are silently consumed and the loop continues.
+`Stack::recv` only delivers packets addressed to the Stack's own `Address` (Unicast match) or `Address::Broadcast` (`0xFF`); other unicast packets are filtered out by the Runner before they reach the queue.
 
 ### Packet format
 
@@ -118,4 +135,4 @@ Both consume the `Rfm69` by value and return it, so the call site pattern is `le
 
 ### Error type
 
-`Error<SPI, RESET, DIO0>` is generic over the three peripheral error types. The `mac` module wraps it again as `TxError` to add `AckTimeout`. Both derive `defmt::Format` under the (now properly declared) `defmt` feature; `Address`, `Flags`, and `Packet` do too. Enabling `defmt` requires `heapless/defmt` to be enabled — the cargo `defmt = ["dep:defmt", "heapless/defmt"]` line in `Cargo.toml` does this — because `Packet::data: Vec<u8, 61>` needs the heapless side to provide the `Format` impl.
+`Error<SPI, RESET, DIO0>` is generic over the three peripheral error types. The `stack` module wraps it again as `TxError` (private) to add `AckTimeout`. The `Transceiver`/`Stack` boundary uses `TrxError` (lossy, in `traits.rs`). `Error` derives `defmt::Format` under the `defmt` feature; `Address`, `Flags`, `Packet`, and `TrxError` do too. Enabling `defmt` requires `heapless/defmt` to be enabled — the cargo `defmt = ["dep:defmt", "heapless/defmt"]` line in `Cargo.toml` does this — because `Packet::data: Vec<u8, 61>` needs the heapless side to provide the `Format` impl.

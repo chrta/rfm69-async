@@ -9,6 +9,7 @@ use embedded_hal_async::spi::SpiDevice;
 use crate::error::Error;
 use crate::packet::Packet;
 use crate::registers::*;
+use crate::traits::{Transceiver, TrxError};
 
 /// Expected content of Register::Version
 const VERSION_CHECK: u8 = 0x24;
@@ -339,5 +340,21 @@ where
         debug!("Rx: Rssi {}; Len {}", rssi, len);
 
         Ok(packet)
+    }
+}
+
+impl<SPI, RESET, DIO0, DELAY, E> Transceiver for Rfm69<SPI, RESET, DIO0, DELAY>
+where
+    SPI: SpiDevice<u8, Error = E>,
+    RESET: OutputPin,
+    DIO0: InputPin + Wait,
+    DELAY: DelayNs,
+{
+    async fn send(&mut self, packet: &Packet) -> Result<(), TrxError> {
+        Rfm69::send(self, packet).await.map_err(Into::into)
+    }
+
+    async fn recv(&mut self) -> Result<Packet, TrxError> {
+        Rfm69::recv(self).await.map_err(Into::into)
     }
 }

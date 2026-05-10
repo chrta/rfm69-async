@@ -24,7 +24,7 @@ keywords = ["rfm69", "radio", "transceiver", "embedded-hal", "embassy"]
 # the standard `log` facade (e.g. when piping output via embassy-usb-logger
 # over USB CDC) and/or `defmt` for defmt-rtt over an SWD probe. Both can be
 # enabled simultaneously; macros fan out to every enabled backend.
-embassy = ["dep:embassy-time"]
+embassy = ["dep:embassy-time", "dep:embassy-sync", "dep:embassy-futures"]
 log = ["dep:log"]
 defmt = ["dep:defmt", "heapless/defmt"]
 
@@ -36,3 +36,5 @@ heapless = "0.9"
 log = { version = "0.4", optional = true }
 defmt = { version = "1", optional = true }
 embassy-time = { version = "0.5", optional = true }
+embassy-sync = { version = "0.8", optional = true }
+embassy-futures = { version = "0.1", optional = true }

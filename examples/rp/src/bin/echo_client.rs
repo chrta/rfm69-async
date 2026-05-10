@@ -5,6 +5,7 @@
 
 use embassy_embedded_hal::shared_bus::asynch::spi::SpiDevice;
 use embassy_executor::Spawner;
+use embassy_futures::join::join;
 use embassy_rp::gpio::{Input, Level, Output, Pull};
 use embassy_rp::peripherals::{DMA_CH0, DMA_CH1, USB};
 use embassy_rp::usb::{Driver, InterruptHandler};
@@ -12,8 +13,7 @@ use embassy_rp::{bind_interrupts, dma, spi};
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::mutex::Mutex;
 use embassy_time::{with_timeout, Delay, Duration, Timer};
-use rfm69_async::mac::{receive_packet, send_packet};
-use rfm69_async::{config, Address, Flags, Rfm69};
+use rfm69_async::{config, Address, Flags, MacTiming, Rfm69, Stack, StackResources};
 use {defmt_rtt as _, panic_probe as _};
 
 bind_interrupts!(struct Irqs {
@@ -57,7 +57,7 @@ async fn main(spawner: Spawner) {
     let rfm_spi = SpiDevice::new(&spi_bus, cs);
 
     let rfm = config::my_defaults(Rfm69::new(rfm_spi, reset, dio0, Delay), 42, 868_480_000).await;
-    let mut rfm = match rfm {
+    let rfm = match rfm {
         Ok(r) => r,
         Err(e) => {
             log::error!("Error: {:?}", e);
@@ -66,35 +66,42 @@ async fn main(spawner: Spawner) {
         }
     };
 
-    let mut counter = 0;
     let own_address = Address::Unicast(84);
+    let mut resources: StackResources = StackResources::new();
+    let (stack, mut runner) = Stack::new(rfm, own_address, &mut resources, MacTiming::default());
 
-    log::info!("Own address: {:?}", own_address);
-    loop {
-        let to_address = Address::Unicast(42);
-        let data_to_send = [0xAA, counter as u8];
-        log::info!("Sending packet to {:?}", to_address);
-        let res = send_packet(&mut rfm, own_address, to_address, Flags::Ack(3), &data_to_send).await;
-        log::info!("Tx Res {:?}", res);
+    // Run the radio Runner concurrently with the application loop. Both
+    // futures are infinite; join blocks main forever, which is what we want.
+    join(runner.run(), async {
+        let mut counter = 0;
+        log::info!("Own address: {:?}", own_address);
+        loop {
+            let to_address = Address::Unicast(42);
+            let data_to_send = [0xAA, counter as u8];
+            log::info!("Sending packet to {:?}", to_address);
+            let res = stack.send(to_address, Flags::Ack(3), &data_to_send).await;
+            log::info!("Tx Res {:?}", res);
 
-        // now expect an echo with same counter, but probably other flags
-        log::debug!("Expecting echo within 1 second (# {})", counter);
-        let rx_result = with_timeout(Duration::from_secs(1), receive_packet(&mut rfm, own_address)).await;
-        match rx_result {
-            Ok(Ok(packet)) => {
-                log::info!("Rx Packet {:?}", packet);
-                if packet.src == to_address && packet.dst == own_address && packet.data.len() == data_to_send.len() {
-                    log::info!("Received expected echo");
-                } else {
-                    log::error!("Received wrong packet");
+            // now expect an echo with same counter, but probably other flags
+            log::debug!("Expecting echo within 1 second (# {})", counter);
+            let rx_result = with_timeout(Duration::from_secs(1), stack.recv()).await;
+            match rx_result {
+                Ok(packet) => {
+                    log::info!("Rx Packet {:?}", packet);
+                    if packet.src == to_address && packet.dst == own_address && packet.data.len() == data_to_send.len()
+                    {
+                        log::info!("Received expected echo");
+                    } else {
+                        log::error!("Received wrong packet");
+                    }
                 }
+                Err(e) => log::error!("Rx timeout error {:?}", e),
             }
-            Ok(Err(e)) => log::error!("Rx error {:?}", e),
-            Err(e) => log::error!("Rx timeout error {:?}", e),
+
+            Timer::after(Duration::from_secs(10)).await;
+
+            counter += 1;
         }
-
-        Timer::after(Duration::from_secs(10)).await;
-
-        counter += 1;
-    }
+    })
+    .await;
 }
