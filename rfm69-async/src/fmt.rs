@@ -10,7 +10,7 @@
 #![allow(unused_macros)]
 
 macro_rules! debug {
-    ($s:literal $(, $x:expr)* $(,)?) => {{
+    ($s:literal $(, $x:expr_2021)* $(,)?) => {{
         #[cfg(feature = "defmt")]
         ::defmt::debug!($s $(, $x)*);
         #[cfg(feature = "log")]
@@ -21,7 +21,7 @@ macro_rules! debug {
 }
 
 macro_rules! info {
-    ($s:literal $(, $x:expr)* $(,)?) => {{
+    ($s:literal $(, $x:expr_2021)* $(,)?) => {{
         #[cfg(feature = "defmt")]
         ::defmt::info!($s $(, $x)*);
         #[cfg(feature = "log")]
@@ -32,7 +32,7 @@ macro_rules! info {
 }
 
 macro_rules! warn {
-    ($s:literal $(, $x:expr)* $(,)?) => {{
+    ($s:literal $(, $x:expr_2021)* $(,)?) => {{
         #[cfg(feature = "defmt")]
         ::defmt::warn!($s $(, $x)*);
         #[cfg(feature = "log")]
@@ -43,7 +43,7 @@ macro_rules! warn {
 }
 
 macro_rules! error {
-    ($s:literal $(, $x:expr)* $(,)?) => {{
+    ($s:literal $(, $x:expr_2021)* $(,)?) => {{
         #[cfg(feature = "defmt")]
         ::defmt::error!($s $(, $x)*);
         #[cfg(feature = "log")]

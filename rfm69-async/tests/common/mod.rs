@@ -15,8 +15,8 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 
 use embassy_time::Duration as EmbassyDuration;
-use futures::executor::block_on;
 use futures::FutureExt;
+use futures::executor::block_on;
 use rfm69_async::{Address, Flags, MacTiming, Packet, Stack, StackResources, Transceiver, TrxError};
 
 /// Hand-rolled Transceiver mock. Holds an inbox of packets the test wants

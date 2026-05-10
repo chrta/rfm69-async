@@ -34,7 +34,7 @@ use embassy_rp::{bind_interrupts, dma, spi};
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::mutex::Mutex;
 use embassy_time::{Delay, Duration, Timer};
-use rfm69_async::{config, Address, Flags, MacTiming, Rfm69, Runner, Stack, StackResources};
+use rfm69_async::{Address, Flags, MacTiming, Rfm69, Runner, Stack, StackResources, config};
 use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
 

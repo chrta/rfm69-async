@@ -1,7 +1,7 @@
 [package]
 name = "rfm69-async"
 version = "0.0.2"
-edition = "2021"
+edition = "2024"
 # MSRV. Floor is set by `heapless = "0.9"`, which declares
 # rust-version = "1.87". `embedded-hal-async` 1.0 only needs 1.75
 # and the rest of our deps are below that, so heapless is the binding
