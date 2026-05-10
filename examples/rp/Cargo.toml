@@ -14,7 +14,7 @@ embassy-rp = { version = "0.10", features = ["defmt", "rp2040", "unstable-pac", 
 embassy-usb = { version = "0.6", features = ["defmt"] }
 embassy-futures = "0.1"
 embassy-usb-logger = "0.6"
-rfm69-async = { version = "0.0.2", features = ["embassy", "defmt"], path = "../../rfm69-async" }
+rfm69-async = { version = "0.0.2", features = ["embassy", "defmt", "log"], path = "../../rfm69-async" }
 
 defmt = "1"
 defmt-rtt = "1"

@@ -45,12 +45,12 @@ where
 
     match flags {
         Flags::None | Flags::Ack(0) => {
-            log::info!("Sending packet");
+            info!("Sending packet");
             rfm.send(&packet).await.map_err(|e| TxError::Rfm69Error(e))
         }
         Flags::Ack(retries) => {
             for i in 1..=retries {
-                log::info!("Sending packet {i} of {retries} and waiting for ACK");
+                info!("Sending packet {} of {} and waiting for ACK", i, retries);
                 rfm.send(&packet).await.map_err(|e| TxError::Rfm69Error(e))?;
                 let result = with_timeout(MAC_ACK_TIMEOUT, wait_for_mac_ack(rfm, src, dst)).await;
                 match result {
@@ -79,7 +79,7 @@ where
         // expect an ack from dst
         let rx_packet = rfm.recv().await?;
         if rx_packet.src == dst && rx_packet.dst == src && rx_packet.is_ack() {
-            log::info!("Received valid ACK");
+            info!("Received valid ACK");
             return Ok(());
         }
     }
@@ -104,7 +104,7 @@ where
                     if n > 0 {
                         let ack =
                             Packet::new(dst, packet.src, Flags::Ack(0), &[]).map_err(|_| Error::WrongPacketFormat)?;
-                        log::info!("Sending requested ACK as reply");
+                        info!("Sending requested ACK as reply");
 
                         // Add small delay, if the sender is not able to switch into receive mode quick enough
                         #[cfg(feature = "embassy")]

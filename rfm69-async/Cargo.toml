@@ -20,15 +20,19 @@ categories = [
 keywords = ["rfm69", "radio", "transceiver", "embedded-hal", "embassy"]
 
 [features]
+# No default features: callers opt into a logging backend. Enable `log` for
+# the standard `log` facade (e.g. when piping output via embassy-usb-logger
+# over USB CDC) and/or `defmt` for defmt-rtt over an SWD probe. Both can be
+# enabled simultaneously; macros fan out to every enabled backend.
 embassy = ["dep:embassy-time"]
+log = ["dep:log"]
 defmt = ["dep:defmt", "heapless/defmt"]
 
 [dependencies]
-log = "0.4"
-
 embedded-hal = "1"
 embedded-hal-async = "1"
 heapless = "0.9"
 
+log = { version = "0.4", optional = true }
 defmt = { version = "1", optional = true }
 embassy-time = { version = "0.5", optional = true }
