@@ -12,8 +12,8 @@ use embassy_rp::usb::{Driver, InterruptHandler};
 use embassy_rp::{bind_interrupts, dma, spi};
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::mutex::Mutex;
-use embassy_time::{with_timeout, Delay, Duration, Timer};
-use rfm69_async::{config, Address, Flags, MacTiming, Rfm69, Stack, StackResources};
+use embassy_time::{Delay, Duration, Timer, with_timeout};
+use rfm69_async::{Address, Flags, MacTiming, Rfm69, Stack, StackResources, config};
 use {defmt_rtt as _, panic_probe as _};
 
 bind_interrupts!(struct Irqs {

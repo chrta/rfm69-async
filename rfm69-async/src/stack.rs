@@ -52,12 +52,12 @@
 //! parametric [`crate::Error`] is collapsed at the [`Transceiver`] boundary.
 //! See the [`TrxError`] rustdoc for the rationale.
 
-use embassy_futures::select::{select, Either};
+use embassy_futures::select::{Either, select};
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::channel::{Channel, DynamicReceiver, DynamicSender};
 use embassy_sync::mutex::Mutex;
 use embassy_sync::signal::Signal;
-use embassy_time::{with_timeout, Duration, Timer};
+use embassy_time::{Duration, Timer, with_timeout};
 use heapless::Vec;
 
 use crate::{Address, Flags, Packet, Transceiver, TrxError};
@@ -274,8 +274,7 @@ impl<'a, TRX: Transceiver> Runner<'a, TRX> {
                 for i in 1..=retries {
                     info!("Stack: send {} of {} (waiting ACK)", i, retries);
                     self.trx.send(&packet).await.map_err(TxError::Trx)?;
-                    let ack = with_timeout(self.timing.ack_timeout, self.wait_for_ack(req.dst)).await;
-                    match ack {
+                    match with_timeout(self.timing.ack_timeout, self.wait_for_ack(req.dst)).await {
                         Ok(Ok(())) => return Ok(()),
                         Ok(Err(e)) => return Err(TxError::Trx(e)),
                         Err(_) => Timer::after(self.timing.tx_retry_delay).await,
@@ -307,18 +306,18 @@ impl<'a, TRX: Transceiver> Runner<'a, TRX> {
     /// would be infinite recursion. The packet is delivered to the user
     /// rx queue regardless of whether we ACKed.
     async fn handle_rx(&mut self, packet: Packet) {
-        if let Flags::Ack(n) = packet.flags {
-            if n > 0 && packet.dst == self.address {
-                let ack = match Packet::new(self.address, packet.src, Flags::Ack(0), &[]) {
-                    Ok(p) => p,
-                    Err(_) => return,
-                };
-                info!("Stack: replying ACK");
-                Timer::after(self.timing.ack_tx_delay).await;
-                if let Err(e) = self.trx.send(&ack).await {
-                    error!("Stack: ACK send failed: {:?}", e);
-                    return;
-                }
+        if let Flags::Ack(n) = packet.flags
+            && n > 0
+            && packet.dst == self.address
+        {
+            let Ok(ack) = Packet::new(self.address, packet.src, Flags::Ack(0), &[]) else {
+                return;
+            };
+            info!("Stack: replying ACK");
+            Timer::after(self.timing.ack_tx_delay).await;
+            if let Err(e) = self.trx.send(&ack).await {
+                error!("Stack: ACK send failed: {:?}", e);
+                return;
             }
         }
         self.try_deliver(packet);
@@ -330,11 +329,7 @@ impl<'a, TRX: Transceiver> Runner<'a, TRX> {
     /// backpressuring the radio. A user task that can't keep up should
     /// raise `N_RX` rather than rely on the queue holding everything.
     fn try_deliver(&self, packet: Packet) {
-        let addressed_to_us = match packet.dst {
-            Address::Unicast(_) => packet.dst == self.address,
-            Address::Broadcast => true,
-        };
-        if !addressed_to_us {
+        if packet.dst != Address::Broadcast && packet.dst != self.address {
             return;
         }
         if self.rx.try_send(packet).is_err() {

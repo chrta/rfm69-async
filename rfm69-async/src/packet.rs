@@ -73,10 +73,7 @@ impl Packet {
     }
 
     pub fn is_ack(&self) -> bool {
-        match self.flags {
-            Flags::None => false,
-            Flags::Ack(_) => true,
-        }
+        matches!(self.flags, Flags::Ack(_))
     }
 }
 

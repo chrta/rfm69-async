@@ -51,7 +51,7 @@ pub enum TrxError {
 // futures unspecified. embassy on the targets this crate supports is
 // single-executor, so Send isn't needed; if a future user runs across
 // executor threads they can desugar a wrapper trait that adds the bound.
-#[allow(async_fn_in_trait)]
+#[expect(async_fn_in_trait)]
 pub trait Transceiver {
     async fn send(&mut self, packet: &Packet) -> Result<(), TrxError>;
     async fn recv(&mut self) -> Result<Packet, TrxError>;
