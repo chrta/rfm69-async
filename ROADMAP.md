@@ -35,7 +35,7 @@ These were considered during the `(Stack, Runner)` design and intentionally defe
 
 - **Pubsub fan-out.** Today's rx is a `Channel`, so each packet goes to exactly one consumer. If multiple tasks want to see every packet, swap in `embassy_sync::pubsub::PubSubChannel`.
 - **Per-address sockets.** `Stack::recv()` returns *every* packet addressed to us. For larger systems with multiplexed protocols on top, a Bind-by-port "socket" abstraction would help. Premature without callers.
-- **Runner errors.** `Runner::run` returns `!`. Hardware errors don't yet have an escape hatch; the Runner loops forever logging. Acceptable for a single-radio driver; revisit if a fault-recovery story emerges.
+- **Runner recovery action.** `Runner::run` exposes hardware faults via `LinkState` (a streak of consecutive `TrxError`s flips to `Down`, surfaced through `Stack::wait_link_down`). Active recovery — driving `RESET` and rerunning a `config::*` helper — is still pending; it needs a `recover` hook on `Transceiver` since today's config helpers consume the radio by value.
 - **Send-bounded futures on `Transceiver`.** The trait-level `#[allow(async_fn_in_trait)]` stays. If a future user needs `Send`-bounded radio futures (cross-executor scenarios), they can desugar a wrapper trait that adds the bound; not worth complicating the public trait speculatively.
 
 ---

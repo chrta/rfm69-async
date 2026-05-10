@@ -27,7 +27,7 @@ use rfm69_async::{Address, Flags, MacTiming, Packet, Stack, StackResources, Tran
 /// or atomics.
 #[derive(Clone, Default)]
 pub struct MockTrx {
-    inbox: Rc<RefCell<VecDeque<Packet>>>,
+    inbox: Rc<RefCell<VecDeque<Result<Packet, TrxError>>>>,
     outbox: Rc<RefCell<Vec<Packet>>>,
 }
 
@@ -38,7 +38,14 @@ impl MockTrx {
 
     /// Queue a packet for the Runner to receive on its next `recv` poll.
     pub fn inject(&self, packet: Packet) {
-        self.inbox.borrow_mut().push_back(packet);
+        self.inbox.borrow_mut().push_back(Ok(packet));
+    }
+
+    /// Queue a `recv` error for the Runner to surface on its next poll.
+    /// Used by the LinkState integration tests to drive the Runner's
+    /// consecutive-error streak.
+    pub fn inject_err(&self, err: TrxError) {
+        self.inbox.borrow_mut().push_back(Err(err));
     }
 
     /// Snapshot of packets the Runner has sent so far.
@@ -55,8 +62,8 @@ impl Transceiver for MockTrx {
 
     async fn recv(&mut self) -> Result<Packet, TrxError> {
         loop {
-            if let Some(p) = self.inbox.borrow_mut().pop_front() {
-                return Ok(p);
+            if let Some(item) = self.inbox.borrow_mut().pop_front() {
+                return item;
             }
             // Yield so the test driver and the user-side Stack future get a
             // chance to run and inject something. `pending!` doesn't wake

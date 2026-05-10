@@ -23,5 +23,5 @@ pub use flags::Flags;
 pub use packet::Packet;
 pub use rfm::Rfm69;
 #[cfg(feature = "embassy")]
-pub use stack::{MacTiming, Runner, Stack, StackResources, TxError};
+pub use stack::{LINK_DOWN_STREAK, LinkState, MacTiming, Runner, Stack, StackResources, TxError};
 pub use traits::{Transceiver, TrxError};

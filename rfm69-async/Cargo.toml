@@ -94,3 +94,19 @@ required-features = ["embassy"]
 [[test]]
 name = "recv_broadcast_no_ack"
 required-features = ["embassy"]
+
+[[test]]
+name = "link_state_starts_up"
+required-features = ["embassy"]
+
+[[test]]
+name = "link_state_streak_marks_down"
+required-features = ["embassy"]
+
+[[test]]
+name = "link_state_recovers_on_success"
+required-features = ["embassy"]
+
+[[test]]
+name = "link_state_below_threshold_stays_up"
+required-features = ["embassy"]
