@@ -88,6 +88,11 @@ async fn main(spawner: Spawner) {
     join(runner.run(), async {
         log::info!("HIL: ready");
 
+        // Give the server time to come up if it was flashed second. The
+        // justfile flashes the server first, but a manual flash in the
+        // opposite order shouldn't lose the first few packets.
+        Timer::after(Duration::from_secs(8)).await;
+
         let mut n_ok: u16 = 0;
         let mut n_timeout: u16 = 0;
         for counter in 0..N_PACKETS {
