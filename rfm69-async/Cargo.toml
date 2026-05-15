@@ -122,6 +122,10 @@ required-features = ["embassy"]
 name = "link_state_below_threshold_stays_up"
 required-features = ["embassy"]
 
+[[test]]
+name = "link_state_recover_retries"
+required-features = ["embassy"]
+
 # Wire-level SPI register-sequence regression tests. Built unconditionally:
 # they exercise `Rfm69` directly (no Stack/Runner), so the embassy feature
 # isn't needed.

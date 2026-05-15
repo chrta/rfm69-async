@@ -69,9 +69,16 @@
 //! multi-waiter fan-out is deferred; build a relay task with
 //! `embassy_sync::pubsub` if you need it.
 //!
-//! Active recovery (driving `RESET` and rerunning a `config::*` helper) is
-//! out of scope; `LinkState` is observation only. Reaction policy is up to
-//! the caller (watchdog reset, escalate, etc).
+//! Active recovery is driven by [`Transceiver::recover`]. When the link
+//! transitions to [`LinkState::Down`], the Runner calls `trx.recover()` at
+//! the top of each loop iteration before issuing any more `send` / `recv`.
+//! A successful `recover` is treated as a normal radio op and flips the
+//! link back to `Up` via the usual streak machinery; a failing `recover`
+//! waits [`MacTiming::recover_backoff`] and retries on the next iteration.
+//! The default `Transceiver::recover` is a no-op, so radios that don't
+//! implement recovery effectively make `Down` terminal — provide a real
+//! `recover` in your `Transceiver` impl to re-pulse `RESET` and re-apply
+//! a `config::*` helper.
 
 use core::cell::Cell;
 
@@ -135,6 +142,11 @@ pub struct MacTiming {
     /// Pause between consecutive TX attempts when the previous attempt's
     /// ACK timed out. Default: 200 ms.
     pub tx_retry_delay: Duration,
+    /// Pause between unsuccessful [`Transceiver::recover`](crate::Transceiver::recover)
+    /// attempts while the link is `Down`. The Runner re-invokes `recover` on
+    /// the next loop iteration with this gap so a stuck radio doesn't spin
+    /// the executor at full speed. Default: 500 ms.
+    pub recover_backoff: Duration,
 }
 
 impl MacTiming {
@@ -143,6 +155,7 @@ impl MacTiming {
             ack_tx_delay: Duration::from_millis(10),
             ack_timeout: Duration::from_millis(50),
             tx_retry_delay: Duration::from_millis(200),
+            recover_backoff: Duration::from_millis(500),
         }
     }
 }
@@ -354,6 +367,26 @@ impl<'a, TRX: Transceiver> Runner<'a, TRX> {
     /// radio is never left in a half-configured state.
     pub async fn run(&mut self) -> ! {
         loop {
+            // Active recovery: while `Down`, drive `Transceiver::recover`
+            // before any further send/recv. Ok flips link via record_ok;
+            // Err keeps it Down and backs off so a stuck radio doesn't
+            // spin the executor. The default `recover` is no-op `Ok(())`,
+            // so radios without a custom impl will immediately appear to
+            // recover and the link will flap on the next real error — the
+            // intended signal that recovery is unimplemented.
+            if matches!(self.link_state.lock(|c| c.get()), LinkState::Down) {
+                match self.trx.recover().await {
+                    Ok(()) => {
+                        info!("Stack: recover succeeded");
+                        self.record_ok();
+                    }
+                    Err(e) => {
+                        error!("Stack: recover failed: {:?}", e);
+                        Timer::after(self.timing.recover_backoff).await;
+                        continue;
+                    }
+                }
+            }
             match select(self.tx_request.receive(), self.trx.recv()).await {
                 Either::First(req) => self.handle_tx(req).await,
                 Either::Second(Ok(packet)) => {

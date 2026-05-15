@@ -55,4 +55,20 @@ pub enum TrxError {
 pub trait Transceiver {
     async fn send(&mut self, packet: &Packet) -> Result<(), TrxError>;
     async fn recv(&mut self) -> Result<Packet, TrxError>;
+
+    /// Hook the `Runner` invokes when the link transitions to
+    /// [`LinkState::Down`](crate::LinkState::Down) — a streak of consecutive
+    /// `TrxError`s on any radio operation.
+    ///
+    /// Implementations should drive the radio back to a usable state (e.g.
+    /// pulse `RESET` and re-apply a `config::*` helper). On `Ok(())` the
+    /// `Runner` resumes normal operation; the next successful `send` / `recv`
+    /// then flips the link back to `Up`. On `Err(_)` the `Runner` keeps the
+    /// link `Down` and retries after a backoff configured on `MacTiming`.
+    ///
+    /// Default: no-op `Ok(())` — the link stays `Down` permanently. Override
+    /// in your `Transceiver` impl to opt into active recovery.
+    async fn recover(&mut self) -> Result<(), TrxError> {
+        Ok(())
+    }
 }

@@ -29,6 +29,8 @@ use rfm69_async::{Address, Flags, MacTiming, Packet, Stack, StackResources, Tran
 pub struct MockTrx {
     inbox: Rc<RefCell<VecDeque<Result<Packet, TrxError>>>>,
     outbox: Rc<RefCell<Vec<Packet>>>,
+    recover_queue: Rc<RefCell<VecDeque<Result<(), TrxError>>>>,
+    recover_calls: Rc<RefCell<u32>>,
 }
 
 impl MockTrx {
@@ -46,6 +48,22 @@ impl MockTrx {
     /// consecutive-error streak.
     pub fn inject_err(&self, err: TrxError) {
         self.inbox.borrow_mut().push_back(Err(err));
+    }
+
+    /// Make the next `recover` call succeed. Recovery tests use this to
+    /// verify the Runner clears `LinkState::Down`.
+    pub fn inject_recover_ok(&self) {
+        self.recover_queue.borrow_mut().push_back(Ok(()));
+    }
+
+    /// Make the next `recover` call fail with the given error.
+    pub fn inject_recover_err(&self, err: TrxError) {
+        self.recover_queue.borrow_mut().push_back(Err(err));
+    }
+
+    /// Total number of times the Runner has invoked `recover` so far.
+    pub fn recover_calls(&self) -> u32 {
+        *self.recover_calls.borrow()
     }
 
     /// Snapshot of packets the Runner has sent so far.
@@ -70,6 +88,17 @@ impl Transceiver for MockTrx {
             // its waker, so use the local `yield_now` instead.
             yield_now().await;
         }
+    }
+
+    async fn recover(&mut self) -> Result<(), TrxError> {
+        *self.recover_calls.borrow_mut() += 1;
+        // Default: recover fails so existing Down-streak tests see a sticky
+        // Down. Tests that exercise the recovery happy path queue up Ok
+        // responses via `inject_recover_ok`.
+        self.recover_queue
+            .borrow_mut()
+            .pop_front()
+            .unwrap_or(Err(TrxError::Reset))
     }
 }
 
@@ -133,6 +162,10 @@ where
         ack_tx_delay: EmbassyDuration::from_millis(1),
         ack_timeout: EmbassyDuration::from_millis(50),
         tx_retry_delay: EmbassyDuration::from_millis(10),
+        // Long enough that the Runner is parked across `pace_time(50, 1)`'s
+        // 50 ms window, so a Down -> recover -> Err -> backoff cycle doesn't
+        // overlap a test's observation window.
+        recover_backoff: EmbassyDuration::from_millis(500),
     };
     let (stack, mut runner) = Stack::new(trx.clone(), Address::Unicast(1), &mut resources, timing);
     let trx_ref = &trx;
