@@ -122,6 +122,55 @@ through this transport, additionally enable the driver's `defmt` feature
 
 [Raspberry Pi Debug Probe]: https://www.raspberrypi.com/products/debug-probe/
 
+## HIL (hardware-in-the-loop) testing
+
+A two-board automated round-trip test lives in `hil-runner/` (host-side
+assertion engine) plus `examples/rp/src/bin/hil_send_client.rs` +
+`hil_recv_server.rs` (the test bins). The pipeline — build, picotool-flash
+both boards, stream their USB-CDC log output, assert each side passes its
+scenario — is driven by [`just`](https://github.com/casey/just).
+
+Prerequisites:
+
+- Two RP2040 boards wired identically to the rest of `examples/rp/` and
+  USB-connected to the host.
+- `picotool` — install from upstream:
+  <https://github.com/raspberrypi/picotool>
+- `just` — `cargo install just`.
+
+Discover each board's picotool serial:
+
+```bash
+just hil-detect
+```
+
+Create a local `.env` at the repo root (gitignored) with four entries
+copied from the output of `just hil-detect` plus
+`ls /dev/serial/by-id/` after flashing once manually:
+
+```
+HIL_BOARD_A=E660C0D1B3818C32           # client board
+HIL_BOARD_B=E660C0D1B381AB12           # server board
+HIL_PORT_A=/dev/serial/by-id/usb-...
+HIL_PORT_B=/dev/serial/by-id/usb-...
+```
+
+Then:
+
+```bash
+just hil-test
+```
+
+flashes both boards in the right order, then asserts that `hil_send_client`
+emits `HIL: PASS sent=100 ack_timeouts=0` and `hil_recv_server` emits
+`HIL: PASS received=100` within 60 s. Exit codes: 0 = success, 1 = explicit
+`HIL: FAIL` on a board, 2 = timeout.
+
+The test exercises the real RF/SPI/ACK round-trip — the bins use the same
+`config::my_defaults` profile and Stack/Runner setup as the rest of the
+examples, with an added 16-bit counter payload so the server can dedup
+ACK-loss-driven retransmits.
+
 ## Changelog
 
 User-visible changes are tracked in [`rfm69-async/CHANGELOG.md`](rfm69-async/CHANGELOG.md),

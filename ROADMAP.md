@@ -22,10 +22,8 @@ Work that is still pending on `rfm69-async`. T-shirt effort sizes:
 
 ## Hardware verification
 
-**Two-board round-trip on RP2040.** *(M)*
-Single-board flashes work; SPI bus, CS, reset GPIO, `config::my_defaults`, DIO0 input + `wait_for_high` on `PacketSent`, FIFO write, and the Runner-internal MAC retry/timeout machinery all run. Still pending: pair two boards so the RX path (real `PayloadReady` wakeup, FIFO read, RSSI capture, ACK ping-pong closing the echo loop) gets exercised. Use `concurrent_demo` as the load test for the Runner state machine.
-
-Blocked on hardware availability.
+**Two-board round-trip on RP2040.** *(M, automated)*
+The HIL pipeline is wired: `just hil-test` builds both bins, picotool-flashes the two paired Picos, streams their USB-CDC output through `hil-runner`, and asserts each side passes its scenario within a timeout. The current scenario is the send/ACK round-trip (100 packets, 0 timeouts on the client, 100 unique on the server). Adding new scenarios is a matter of writing another bin pair + another `just hil-*` recipe. Still requires the maintainer to have the hardware on hand — no CI integration yet.
 
 ---
 
