@@ -15,8 +15,8 @@ Work that is still pending on `rfm69-async`. T-shirt effort sizes:
 **Wider register coverage.** *(L)*
 `read_all_regs` exists but most setters are missing (e.g. PA, OCP, AFC, encryption / AES key, listen mode, temperature sensor). Add as user requests come in.
 
-**SPI-level mocking via `embedded-hal-mock`.** *(M, partial)*
-A first pass exists in `tests/spi_protocol.rs`: it locks the wire-level register sequences for `reset` (success and version mismatch), single read/write, multi-register write (`frequency`), and the `send` / `recv` happy paths in both DIO0-connected and IrqFlags2-polling modes. Still pending: per-setter coverage (every `bit_rate` / `fdev` / `sync` / `packet` / `lna` / etc.) and an SPI-error injection case (blocked on the `SpiTransaction::with_error` builder, which is in `embedded-hal-mock` `main` but not the published 0.11.1 — revisit on the next release).
+**SPI-level mocking via `embedded-hal-mock`.** *(M, mostly done)*
+`tests/spi_protocol.rs` locks wire-level register sequences for `reset` (success and version mismatch), every public `Rfm69` setter (`set_mode`, `modulation`, `bit_rate`, `fdev`, `frequency`, `rx_bw`, `preamble_length`, `sync` ×3, `packet`, `fifo_mode` ×2, `lna`, `rssi_threshold`, `continuous_dagc`), the IRQ-flag readers, and the `send` / `recv` happy paths in both DIO0-connected and IrqFlags2-polling modes. Still pending: an SPI-error injection case (blocked on the `SpiTransaction::with_error` builder, which is in `embedded-hal-mock` `main` but not the published 0.11.1 — revisit on the next release).
 
 ---
 
