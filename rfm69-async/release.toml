@@ -1,0 +1,45 @@
+# Configuration for `cargo release` (https://github.com/crate-ci/cargo-release).
+# Install with `cargo install cargo-release`, then run from this crate's
+# directory:
+#
+#   cd rfm69-async
+#   cargo release 0.1.0             # dry-run preview (default)
+#   cargo release 0.1.0 --execute   # actually commit + tag
+#
+# Defaults below are conservative: nothing is pushed and nothing is published.
+# After --execute, `git push --follow-tags` and `cargo publish` are explicit
+# user steps.
+
+# Match existing tag style (v0.0.1, v0.0.2).
+tag-name = "v{{version}}"
+
+# Don't auto-push or auto-publish — leave both as explicit user steps.
+push = false
+publish = false
+
+# This repo doesn't GPG-sign commits or tags.
+sign-commit = false
+sign-tag = false
+
+# Terse release commit, matching the rest of this repo's commit style.
+# Plain DCO sign-off only — the version bump is mechanical, so no
+# Assisted-by trailer.
+pre-release-commit-message = """rfm69-async: release {{version}}
+
+Signed-off-by: Christian Taedcke <hacking@taedcke.com>
+"""
+
+# Mechanical text substitutions applied before the release commit lands.
+# Paths are relative to this manifest directory.
+pre-release-replacements = [
+    # Promote the Unreleased section to a dated release section, leaving a
+    # fresh empty Unreleased heading above it for the next cycle.
+    { file = "CHANGELOG.md", search = "## \\[Unreleased\\]", replace = "## [Unreleased]\n\n## [{{version}}] - {{date}}", exactly = 1 },
+    # Rewrite the comparator footer links so the new release brackets the
+    # previous tag and Unreleased now points at the newly-created tag.
+    { file = "CHANGELOG.md", search = "\\[Unreleased\\]: https://github.com/chrta/rfm69-async/compare/.*\\.\\.\\.HEAD", replace = "[Unreleased]: https://github.com/chrta/rfm69-async/compare/v{{version}}...HEAD\n[{{version}}]: https://github.com/chrta/rfm69-async/compare/{{prev_tag_name}}...v{{version}}", exactly = 1 },
+    # Keep the path-dep version in the examples crate in sync with this
+    # crate. The `path =` entry wins for builds, but the `version =` hint
+    # must stay ≤ the published version, so bump it alongside.
+    { file = "../examples/rp/Cargo.toml", search = "rfm69-async = \\{ version = \"[^\"]+\"", replace = "rfm69-async = { version = \"{{version}}\"", exactly = 1 },
+]

@@ -7,12 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Staged for `0.1.0` — the first semver-tracked release. The crate has
-been substantially rewritten since `0.0.2`; expect breaking changes
-if you were depending on `0.0.x`. When this section ships, rename
-the heading to `## [0.1.0] - YYYY-MM-DD` and add a fresh empty
-`## [Unreleased]` above it.
-
 ### Added
 
 - **Stack / Runner API.** New high-level surface in the `stack` module

@@ -127,6 +127,23 @@ through this transport, additionally enable the driver's `defmt` feature
 User-visible changes are tracked in [`rfm69-async/CHANGELOG.md`](rfm69-async/CHANGELOG.md),
 following the [Keep a Changelog](https://keepachangelog.com/) format.
 
+### Releasing
+
+Version bumps are driven by [`cargo-release`](https://github.com/crate-ci/cargo-release);
+configuration lives in [`rfm69-async/release.toml`](rfm69-async/release.toml).
+Edit the `## [Unreleased]` section of the changelog with the user-facing
+notes for the new release, then:
+
+```bash
+cargo install cargo-release          # one-time
+cd rfm69-async
+cargo release 0.1.0                  # dry-run preview
+cargo release 0.1.0 --execute        # bump Cargo.toml + examples path-dep,
+                                     # rename the changelog heading, commit, tag
+git push --follow-tags               # explicit — release.toml has push = false
+cargo publish                        # explicit — release.toml has publish = false
+```
+
 ## License
 
 This work is licensed under the GNU Affero General Public License v3.0 only
