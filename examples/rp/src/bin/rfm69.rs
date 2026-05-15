@@ -55,15 +55,12 @@ async fn main(spawner: Spawner) {
 
     let rfm_spi = SpiDevice::new(&spi_bus, cs);
 
-    let rfm = config::my_defaults(Rfm69::new(rfm_spi, reset, dio0, Delay), 42, 868_480_000).await;
-    let rfm = match rfm {
-        Ok(r) => r,
-        Err(e) => {
-            log::error!("Error: {:?}", e);
-            Timer::after(Duration::from_millis(5000)).await;
-            panic!("PANICCC");
-        }
-    };
+    let mut rfm = Rfm69::new(rfm_spi, reset, dio0, Delay);
+    if let Err(e) = config::my_defaults(&mut rfm, 42, 868_480_000).await {
+        log::error!("Error: {:?}", e);
+        Timer::after(Duration::from_millis(5000)).await;
+        panic!("PANICCC");
+    }
 
     //for (index, val) in rfm.read_all_regs().await.unwrap().iter().enumerate() {
     //    log::info!("Register 0x{:02x} = 0x{:02x}", index + 1, val);

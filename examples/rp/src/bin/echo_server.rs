@@ -56,15 +56,12 @@ async fn main(spawner: Spawner) {
 
     let rfm_spi = SpiDevice::new(&spi_bus, cs);
 
-    let rfm = config::my_defaults(Rfm69::new(rfm_spi, reset, dio0, Delay), 42, 868_480_000).await;
-    let rfm = match rfm {
-        Ok(r) => r,
-        Err(e) => {
-            log::error!("Error: {:?}", e);
-            Timer::after(Duration::from_millis(5000)).await;
-            panic!();
-        }
-    };
+    let mut rfm = Rfm69::new(rfm_spi, reset, dio0, Delay);
+    if let Err(e) = config::my_defaults(&mut rfm, 42, 868_480_000).await {
+        log::error!("Error: {:?}", e);
+        Timer::after(Duration::from_millis(5000)).await;
+        panic!();
+    }
 
     let own_address = Address::Unicast(42);
     let mut resources: StackResources = StackResources::new();

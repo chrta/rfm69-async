@@ -17,10 +17,10 @@ use crate::rfm::Rfm69;
 ///
 /// Note: This configuration is not tested/used.
 pub async fn low_power_lab_defaults<SPI, RESET, DIO0, DELAY, E>(
-    mut rfm: Rfm69<SPI, RESET, DIO0, DELAY>,
+    rfm: &mut Rfm69<SPI, RESET, DIO0, DELAY>,
     network_id: u8,
     frequency: u32,
-) -> Result<Rfm69<SPI, RESET, DIO0, DELAY>, Error<E, RESET::Error, DIO0::Error>>
+) -> Result<(), Error<E, RESET::Error, DIO0::Error>>
 where
     SPI: SpiDevice<u8, Error = E>,
     RESET: OutputPin,
@@ -64,7 +64,7 @@ where
     rfm.continuous_dagc(ContinuousDagc::ImprovedMarginAfcLowBetaOn0).await?;
     //Timer::after(Duration::from_millis(1)).await;
     rfm.set_mode(OpMode::Sleep).await?;
-    Ok(rfm)
+    Ok(())
 }
 
 /// Custom configuration (gfsk, 100kBit/sec)
@@ -72,10 +72,10 @@ where
 /// This uses gfsk to reduce the used bandwidth and a 100kBit/sec data rate.
 /// Otherwise it is similar to the Low Power Lab configuration.
 pub async fn my_defaults<SPI, RESET, DIO0, DELAY, E>(
-    mut rfm: Rfm69<SPI, RESET, DIO0, DELAY>,
+    rfm: &mut Rfm69<SPI, RESET, DIO0, DELAY>,
     network_id: u8,
     frequency: u32,
-) -> Result<Rfm69<SPI, RESET, DIO0, DELAY>, Error<E, RESET::Error, DIO0::Error>>
+) -> Result<(), Error<E, RESET::Error, DIO0::Error>>
 where
     SPI: SpiDevice<u8, Error = E>,
     RESET: OutputPin,
@@ -119,5 +119,5 @@ where
     rfm.continuous_dagc(ContinuousDagc::ImprovedMarginAfcLowBetaOn0).await?;
     //Timer::after(Duration::from_millis(1)).await;
     rfm.set_mode(OpMode::Sleep).await?;
-    Ok(rfm)
+    Ok(())
 }

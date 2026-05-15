@@ -57,6 +57,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Config helpers take `&mut Rfm69` instead of consuming by value.**
+  `config::my_defaults` / `config::low_power_lab_defaults` now have the
+  signature `(rfm: &mut Rfm69<...>, network_id, frequency) -> Result<(), Error>`
+  rather than `(rfm) -> Result<Rfm69, Error>`. Migration: drop the
+  consume-and-rebind, pass a mutable reference instead.
+  ```rust
+  // Before:
+  let rfm = config::my_defaults(Rfm69::new(...), id, freq).await?;
+  // After:
+  let mut rfm = Rfm69::new(...);
+  config::my_defaults(&mut rfm, id, freq).await?;
+  ```
+  Enables re-applying the configuration in place from a
+  `Transceiver::recover` impl after a hardware fault.
 - **License: relicensed from `MIT OR Apache-2.0` to `AGPL-3.0-only`.**
   Versions `0.0.1` and `0.0.2` remain available under the original
   dual license; new releases are AGPL-only. A small number of files in
