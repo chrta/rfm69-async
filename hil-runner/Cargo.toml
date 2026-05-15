@@ -1,0 +1,12 @@
+[package]
+name = "hil-runner"
+version = "0.1.0"
+edition = "2024"
+license = "AGPL-3.0-only"
+description = "Two-board hardware-in-the-loop test runner for rfm69-async"
+publish = false
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+regex = "1"
+serialport = "4"
