@@ -58,10 +58,12 @@
 //! use rfm69_async::{config, Address, Flags, Rfm69, Stack, StackResources, MacTiming};
 //!
 //! // 1. Construct the bare driver from your HAL's SPI / GPIO / delay.
-//! let rfm = Rfm69::new(spi, reset_pin, Some(dio0_pin), delay);
+//! let mut rfm = Rfm69::new(spi, reset_pin, Some(dio0_pin), delay);
 //!
-//! // 2. Apply a preset configuration (consumes & returns the Rfm69).
-//! let rfm = config::my_defaults(rfm, /* network_id */ 0x42, /* freq Hz */ 868_000_000).await?;
+//! // 2. Apply a preset configuration in place. The same call can be re-issued
+//! //    later (e.g. from a `Transceiver::recover` impl) to re-initialize after
+//! //    a hardware fault.
+//! config::my_defaults(&mut rfm, /* network_id */ 0x42, /* freq Hz */ 868_000_000).await?;
 //!
 //! // 3. Split into a Stack handle and a Runner task.
 //! static mut RES: StackResources<4> = StackResources::new();

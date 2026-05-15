@@ -125,14 +125,12 @@ async fn main(spawner: Spawner) {
     let dio0 = Some(Input::new(p.PIN_15, Pull::None));
     let rfm_spi = SpiDevice::new(spi_bus, cs);
 
-    let rfm = match config::my_defaults(Rfm69::new(rfm_spi, reset, dio0, Delay), 42, 868_480_000).await {
-        Ok(r) => r,
-        Err(e) => {
-            log::error!("Radio init error: {:?}", e);
-            Timer::after(Duration::from_millis(5000)).await;
-            panic!();
-        }
-    };
+    let mut rfm = Rfm69::new(rfm_spi, reset, dio0, Delay);
+    if let Err(e) = config::my_defaults(&mut rfm, 42, 868_480_000).await {
+        log::error!("Radio init error: {:?}", e);
+        Timer::after(Duration::from_millis(5000)).await;
+        panic!();
+    }
 
     // Address 100 picked so this bin doesn't collide with echo_client (84) or
     // echo_server / rfm69 (42); change it on each board if pairing two of
