@@ -7,9 +7,9 @@ use futures::FutureExt;
 use rfm69_async::{LinkState, TrxError};
 
 #[test]
-fn link_flips_back_up_on_recover_success() {
+fn recover_retries_after_failure_until_success() {
     run_test(async |stack, trx| {
-        // Drive the link Down with a streak of recv errors.
+        // Drive the link Down.
         for _ in 0..3 {
             trx.inject_err(TrxError::Spi);
         }
@@ -23,17 +23,18 @@ fn link_flips_back_up_on_recover_success() {
                 _ = pacer => panic!("wait_link_down never resolved"),
             }
         }
-        assert!(matches!(stack.link_state(), LinkState::Down));
 
-        // Once Down, the Runner is stuck in the recovery loop — random
-        // `recv` successes wouldn't be observable (recv isn't called until
-        // recovery clears the link). Queue a successful recover instead.
+        // Two failed recover attempts then one success. The Runner sleeps
+        // `recover_backoff` (500 ms in run_test) between attempts; pace
+        // time forward far enough to clear at least two backoffs.
+        trx.inject_recover_err(TrxError::Reset);
+        trx.inject_recover_err(TrxError::Reset);
         trx.inject_recover_ok();
+
         {
             let wait = stack.wait_link_up().fuse();
-            // Long enough for one recover_backoff (500 ms) to elapse and the
-            // next recovery attempt to be polled.
-            let pacer = pace_time(700, 1).fuse();
+            // 3 recover calls × 500 ms backoff + slack.
+            let pacer = pace_time(2_000, 1).fuse();
             futures::pin_mut!(wait);
             futures::pin_mut!(pacer);
             futures::select! {
@@ -41,7 +42,12 @@ fn link_flips_back_up_on_recover_success() {
                 _ = pacer => panic!("wait_link_up never resolved"),
             }
         }
+
         assert!(matches!(stack.link_state(), LinkState::Up));
-        assert!(trx.recover_calls() >= 1);
+        assert!(
+            trx.recover_calls() >= 3,
+            "expected at least 3 recover calls, got {}",
+            trx.recover_calls()
+        );
     });
 }

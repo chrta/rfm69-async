@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `TrxError`s on any radio operation flips the link to `Down`; the next
   success flips it back. Surface via `Stack::is_link_up`,
   `Stack::link_state`, `Stack::wait_link_up`, `Stack::wait_link_down`.
+- **`Transceiver::recover` hook + active recovery in `Runner`.** New
+  trait method (default `Ok(())` no-op) the `Runner` calls when the
+  link transitions to `Down`. On `Ok(())` the Runner resumes normal
+  ops; on `Err(_)` it backs off (`MacTiming::recover_backoff`, default
+  500 ms) and retries. Override `recover` in your `Transceiver` impl to
+  re-pulse `RESET` and re-apply a `config::*` helper.
 - **`Transceiver` trait** as the abstraction boundary between the
   high-level Stack and the underlying radio. `Stack` / `Runner` are
   generic over `TRX: Transceiver`, so they're reusable against any
