@@ -20,6 +20,14 @@
 //! immediately (broadcasts aren't ACK'd) and `rx_task` sits idle. Pair with
 //! a second Pico flashed with this same bin (different `own_address`) to
 //! see each board log the other's heartbeats while still emitting its own.
+//!
+//! This bin also demonstrates `Transceiver::recover`: the radio is wrapped
+//! in [`RecoveringRadio`], which remembers the config parameters and
+//! re-runs `config::my_defaults` on recovery. After a streak of failures
+//! flips `LinkState` to `Down`, the Runner calls `recover()`, which
+//! re-pulses `RESET` and reapplies every register. The wrapper is the
+//! canonical pattern; copy it to your own bin and substitute your config
+//! helper.
 
 #![no_std]
 #![no_main]
@@ -34,7 +42,9 @@ use embassy_rp::{bind_interrupts, dma, spi};
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::mutex::Mutex;
 use embassy_time::{Delay, Duration, Timer};
-use rfm69_async::{Address, Flags, MacTiming, Rfm69, Runner, Stack, StackResources, config};
+use rfm69_async::{
+    Address, Flags, MacTiming, Packet, Rfm69, Runner, Stack, StackResources, Transceiver, TrxError, config,
+};
 use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
 
@@ -53,13 +63,40 @@ type RadioSpi = SpiDevice<'static, NoopRawMutex, Spi<'static, SPI0, Async>, Outp
 // one. Spelling that out here.
 type Radio = Rfm69<RadioSpi, Output<'static>, Input<'static>, Delay>;
 
+/// `Transceiver` wrapper that remembers the config parameters so it can
+/// re-run `config::my_defaults` from `recover`. The Runner invokes
+/// `recover` whenever `LinkState` flips to `Down` — see the
+/// `Transceiver::recover` docs for the exact contract.
+struct RecoveringRadio {
+    rfm: Radio,
+    network_id: u8,
+    frequency: u32,
+}
+
+impl Transceiver for RecoveringRadio {
+    async fn send(&mut self, packet: &Packet) -> Result<(), TrxError> {
+        self.rfm.send(packet).await.map_err(Into::into)
+    }
+
+    async fn recv(&mut self) -> Result<Packet, TrxError> {
+        self.rfm.recv().await.map_err(Into::into)
+    }
+
+    async fn recover(&mut self) -> Result<(), TrxError> {
+        log::warn!("RecoveringRadio: re-applying config after link Down");
+        config::my_defaults(&mut self.rfm, self.network_id, self.frequency)
+            .await
+            .map_err(Into::into)
+    }
+}
+
 #[embassy_executor::task]
 async fn logger_task(driver: Driver<'static, USB>) {
     embassy_usb_logger::run!(1024, log::LevelFilter::Debug, driver);
 }
 
 #[embassy_executor::task]
-async fn runner_task(mut runner: Runner<'static, Radio>) -> ! {
+async fn runner_task(mut runner: Runner<'static, RecoveringRadio>) -> ! {
     runner.run().await
 }
 
@@ -125,12 +162,23 @@ async fn main(spawner: Spawner) {
     let dio0 = Some(Input::new(p.PIN_15, Pull::None));
     let rfm_spi = SpiDevice::new(spi_bus, cs);
 
+    let network_id = 42;
+    let frequency = 868_480_000;
     let mut rfm = Rfm69::new(rfm_spi, reset, dio0, Delay);
-    if let Err(e) = config::my_defaults(&mut rfm, 42, 868_480_000).await {
+    if let Err(e) = config::my_defaults(&mut rfm, network_id, frequency).await {
         log::error!("Radio init error: {:?}", e);
         Timer::after(Duration::from_millis(5000)).await;
         panic!();
     }
+
+    // Wrap the bare Rfm69 in the recovery-aware Transceiver. The wrapper
+    // captures `network_id` / `frequency` so it can re-run the same config
+    // helper from `recover`.
+    let trx = RecoveringRadio {
+        rfm,
+        network_id,
+        frequency,
+    };
 
     // Address 100 picked so this bin doesn't collide with echo_client (84) or
     // echo_server / rfm69 (42); change it on each board if pairing two of
@@ -138,7 +186,7 @@ async fn main(spawner: Spawner) {
     let own_address = Address::Unicast(100);
     static RESOURCES: StaticCell<StackResources> = StaticCell::new();
     let resources = RESOURCES.init(StackResources::new());
-    let (stack, runner) = Stack::new(rfm, own_address, resources, MacTiming::default());
+    let (stack, runner) = Stack::new(trx, own_address, resources, MacTiming::default());
 
     log::info!("Own address: {:?}", own_address);
     spawner.spawn(runner_task(runner).unwrap());
