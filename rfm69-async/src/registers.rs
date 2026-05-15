@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-//! Register addresses and content helpers for the rfm69
+//! Register addresses, mode enums, and typed wrappers for the values the
+//! [`Rfm69`](crate::Rfm69) setters accept.
+//!
+//! Most callers don't need this module — the [`config`](crate::config)
+//! presets construct the right values internally. It's public so users
+//! who need a profile beyond `my_defaults` / `low_power_lab_defaults` can
+//! build their own configuration function by calling [`Rfm69`](crate::Rfm69)
+//! setters directly with these types.
 
 /// RFM69 register addresses
 ///

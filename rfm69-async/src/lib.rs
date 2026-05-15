@@ -144,7 +144,7 @@ pub mod config;
 mod error;
 mod flags;
 mod packet;
-mod registers;
+pub mod registers;
 mod rfm;
 mod traits;
 

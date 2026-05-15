@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ops; on `Err(_)` it backs off (`MacTiming::recover_backoff`, default
   500 ms) and retries. Override `recover` in your `Transceiver` impl to
   re-pulse `RESET` and re-apply a `config::*` helper.
+- **`registers` module is now public.** The typed wrappers the
+  `Rfm69` setters take (`OpMode`, `Modulation`, `RxBw`, `PacketConfig`,
+  `LnaConfig`, `FifoMode`, `ContinuousDagc`, …) are exposed under
+  `rfm69_async::registers::*` so callers can write their own
+  configuration helpers when neither `config::my_defaults` nor
+  `config::low_power_lab_defaults` fits.
 - **`Transceiver` trait** as the abstraction boundary between the
   high-level Stack and the underlying radio. `Stack` / `Runner` are
   generic over `TRX: Transceiver`, so they're reusable against any
