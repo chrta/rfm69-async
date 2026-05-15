@@ -30,6 +30,10 @@ use embedded_hal_mock::eh1::digital::Transaction as PinTransaction;
 use embedded_hal_mock::eh1::spi::Mock as SpiMock;
 use embedded_hal_mock::eh1::spi::Transaction as SpiTransaction;
 use futures::executor::block_on;
+use rfm69_async::registers::{
+    ContinuousDagc, DataMode, DccCutoff, FifoMode, InterPacketRxDelay, LnaConfig, LnaGain, LnaImpedance, Modulation,
+    ModulationShaping, ModulationType, OpMode, PacketConfig, PacketDc, PacketFiltering, PacketFormat, RxBw, RxBwFsk,
+};
 use rfm69_async::{Address, Error, Flags, Packet, Rfm69};
 
 // Numeric register addresses. Duplicated as constants here rather than
@@ -38,12 +42,25 @@ use rfm69_async::{Address, Error, Flags, Packet, Rfm69};
 // the enum would make the test tautological.
 const REG_FIFO: u8 = 0x00;
 const REG_OPMODE: u8 = 0x01;
+const REG_DATA_MODUL: u8 = 0x02;
+const REG_BITRATE_MSB: u8 = 0x03;
+const REG_FDEV_MSB: u8 = 0x05;
 const REG_FRF_MSB: u8 = 0x07;
 const REG_VERSION: u8 = 0x10;
+const REG_LNA: u8 = 0x18;
+const REG_RX_BW: u8 = 0x19;
 const REG_RSSI_VALUE: u8 = 0x24;
 const REG_DIO_MAPPING1: u8 = 0x25;
 const REG_IRQ_FLAGS1: u8 = 0x27;
 const REG_IRQ_FLAGS2: u8 = 0x28;
+const REG_RSSI_THRESH: u8 = 0x29;
+const REG_PREAMBLE_MSB: u8 = 0x2C;
+const REG_SYNC_CONFIG: u8 = 0x2E;
+const REG_SYNC_VALUE1: u8 = 0x2F;
+const REG_PACKET_CONFIG_1: u8 = 0x37;
+const REG_FIFO_THRESH: u8 = 0x3C;
+const REG_PACKET_CONFIG_2: u8 = 0x3D;
+const REG_TEST_DAGC: u8 = 0x6F;
 
 // OpMode register values.
 const OPMODE_SLEEP: u8 = 0x00;
@@ -295,6 +312,289 @@ fn recv_with_dio0_reads_fifo_and_rssi() {
     spi.done();
     reset.done();
     dio0.done();
+    delay.done();
+}
+
+// --- Tier 2: per-setter wire-format coverage ----------------------------
+//
+// Each test below locks the exact byte sequence one of the public setters
+// puts on the SPI bus. The expected values are derived by hand from the
+// datasheet and the type definitions in `rfm69_async::registers` — not
+// re-imported from those types — so a wrong bit composition in the driver
+// surfaces as a mismatch rather than passing tautologically.
+//
+// Shared helper for "construct a barebones Rfm69 wired to mocks, run the
+// closure, drain everything". Each test still spells out its own
+// expectation vec so the matching call is local and obvious.
+
+type SetterFixture = (
+    Rfm69<SpiMock<u8>, PinMock, PinMock, CheckedDelay>,
+    SpiMock<u8>,
+    PinMock,
+    CheckedDelay,
+);
+
+/// Returns `(rfm, spi, reset, delay)` — the caller must `.done()` all three
+/// mocks at the end of the test. (DIO0 is `None` since these setters don't
+/// touch the pin.) reset and delay come back with empty expectation lists,
+/// but still need `done()` so an unexpected GPIO toggle or delay would be
+/// caught by the SpiMock's strict matcher behaviour.
+fn rfm_with_spi(spi_x: &[SpiTransaction<u8>]) -> SetterFixture {
+    let spi = SpiMock::new(spi_x);
+    let reset = PinMock::new(&[]);
+    let delay = CheckedDelay::new(&[]);
+    let dio0: Option<PinMock> = None;
+    let rfm = Rfm69::new(spi.clone(), reset.clone(), dio0, delay.clone());
+    (rfm, spi, reset, delay)
+}
+
+#[test]
+fn set_mode_writes_opmode_register() {
+    // Standby = 0x04; the setter is a single-byte write.
+    let spi_x = wr(REG_OPMODE, 0x04);
+
+    let (mut rfm, mut spi, mut reset, mut delay) = rfm_with_spi(&spi_x);
+    block_on(rfm.set_mode(OpMode::Standby)).unwrap();
+    spi.done();
+    reset.done();
+    delay.done();
+}
+
+#[test]
+fn modulation_composes_three_fields() {
+    // Packet (0x00) | Fsk (0x00) | Shaping10 BT=0.5 (0x02) = 0x02.
+    let spi_x = wr(REG_DATA_MODUL, 0x02);
+
+    let (mut rfm, mut spi, mut reset, mut delay) = rfm_with_spi(&spi_x);
+    block_on(rfm.modulation(Modulation {
+        data_mode: DataMode::Packet,
+        modulation_type: ModulationType::Fsk,
+        shaping: ModulationShaping::Shaping10,
+    }))
+    .unwrap();
+    spi.done();
+    reset.done();
+    delay.done();
+}
+
+#[test]
+fn bit_rate_writes_two_scaled_bytes() {
+    // FOSC = 32 MHz * F_SCALE; reg = FOSC / (bit_rate * F_SCALE).
+    // For 100_000 bps: 32_000_000_000_000 / 100_000_000_000 = 320 = 0x0140.
+    let spi_x = wr_n(REG_BITRATE_MSB, &[0x01, 0x40]);
+
+    let (mut rfm, mut spi, mut reset, mut delay) = rfm_with_spi(&spi_x);
+    block_on(rfm.bit_rate(100_000)).unwrap();
+    spi.done();
+    reset.done();
+    delay.done();
+}
+
+#[test]
+fn fdev_writes_two_scaled_bytes() {
+    // reg = (fdev * F_SCALE) / FSTEP. FSTEP = FOSC / 2^19, integer
+    // division: FSTEP = 61_035_156. For 50_000 Hz:
+    // 50_000_000_000 / 61_035_156 = 819 (truncating) = 0x0333.
+    let spi_x = wr_n(REG_FDEV_MSB, &[0x03, 0x33]);
+
+    let (mut rfm, mut spi, mut reset, mut delay) = rfm_with_spi(&spi_x);
+    block_on(rfm.fdev(50_000)).unwrap();
+    spi.done();
+    reset.done();
+    delay.done();
+}
+
+#[test]
+fn rx_bw_composes_dcc_cutoff_and_filter() {
+    // Percent4 (0x40) | Khz125dot0 (encoded as 2) = 0x42.
+    let spi_x = wr(REG_RX_BW, 0x42);
+
+    let (mut rfm, mut spi, mut reset, mut delay) = rfm_with_spi(&spi_x);
+    block_on(rfm.rx_bw(RxBw {
+        dcc_cutoff: DccCutoff::Percent4,
+        rx_bw: RxBwFsk::Khz125dot0,
+    }))
+    .unwrap();
+    spi.done();
+    reset.done();
+    delay.done();
+}
+
+#[test]
+fn preamble_length_writes_two_be_bytes() {
+    // u16 big-endian: 3 → [0x00, 0x03].
+    let spi_x = wr_n(REG_PREAMBLE_MSB, &[0x00, 0x03]);
+
+    let (mut rfm, mut spi, mut reset, mut delay) = rfm_with_spi(&spi_x);
+    block_on(rfm.preamble_length(3)).unwrap();
+    spi.done();
+    reset.done();
+    delay.done();
+}
+
+#[test]
+fn sync_normal_writes_config_byte_plus_payload() {
+    // len=2 → config byte = 0x80 | ((2-1) << 3) = 0x88; payload at SyncValue1.
+    let mut spi_x = Vec::new();
+    spi_x.extend(wr(REG_SYNC_CONFIG, 0x88));
+    spi_x.extend(wr_n(REG_SYNC_VALUE1, &[0x2D, 0x42]));
+
+    let (mut rfm, mut spi, mut reset, mut delay) = rfm_with_spi(&spi_x);
+    block_on(rfm.sync(&[0x2D, 0x42])).unwrap();
+    spi.done();
+    reset.done();
+    delay.done();
+}
+
+#[test]
+fn sync_empty_clears_config_bit() {
+    // Empty slice → update_register(SyncConfig, r & 0x7F). Mock returns
+    // 0xFF; expect 0x7F written back.
+    let mut spi_x = Vec::new();
+    spi_x.extend(rd(REG_SYNC_CONFIG, 0xFF));
+    spi_x.extend(wr(REG_SYNC_CONFIG, 0x7F));
+
+    let (mut rfm, mut spi, mut reset, mut delay) = rfm_with_spi(&spi_x);
+    block_on(rfm.sync(&[])).unwrap();
+    spi.done();
+    reset.done();
+    delay.done();
+}
+
+#[test]
+fn sync_too_long_returns_error_without_spi() {
+    // 9 bytes > max sync length 8. The setter rejects before any SPI op.
+    let (mut rfm, mut spi, mut reset, mut delay) = rfm_with_spi(&[]);
+    let res = block_on(rfm.sync(&[0u8; 9]));
+    assert!(matches!(res, Err(Error::SyncSize)));
+    spi.done();
+    reset.done();
+    delay.done();
+}
+
+#[test]
+fn packet_writes_config1_then_updates_config2() {
+    // PacketConfig1 byte:
+    //   format=Variable(66) -> reg |= 0x80, len=66
+    //   crc=true            -> reg |= 0x10
+    //   dc=None, filtering=None -> +0
+    //   total = 0x90; len byte follows.
+    // PacketConfig2 (update_register): mock returns 0x00; new value =
+    //   (0x00 & 0x0D) | (Delay2Bits=0x10 | (auto_rx_restart=true as u8) << 1)
+    //   = 0 | 0x12 = 0x12.
+    let mut spi_x = Vec::new();
+    spi_x.extend(wr_n(REG_PACKET_CONFIG_1, &[0x90, 66]));
+    spi_x.extend(rd(REG_PACKET_CONFIG_2, 0x00));
+    spi_x.extend(wr(REG_PACKET_CONFIG_2, 0x12));
+
+    let (mut rfm, mut spi, mut reset, mut delay) = rfm_with_spi(&spi_x);
+    block_on(rfm.packet(PacketConfig {
+        format: PacketFormat::Variable(66),
+        dc: PacketDc::None,
+        filtering: PacketFiltering::None,
+        crc: true,
+        interpacket_rx_delay: InterPacketRxDelay::Delay2Bits,
+        auto_rx_restart: true,
+    }))
+    .unwrap();
+    spi.done();
+    reset.done();
+    delay.done();
+}
+
+#[test]
+fn fifo_mode_not_empty_sets_high_bit() {
+    // update_register(FifoThresh, r | 0x80). Mock returns 0x0F; expect
+    // 0x8F written back.
+    let mut spi_x = Vec::new();
+    spi_x.extend(rd(REG_FIFO_THRESH, 0x0F));
+    spi_x.extend(wr(REG_FIFO_THRESH, 0x8F));
+
+    let (mut rfm, mut spi, mut reset, mut delay) = rfm_with_spi(&spi_x);
+    block_on(rfm.fifo_mode(FifoMode::NotEmpty)).unwrap();
+    spi.done();
+    reset.done();
+    delay.done();
+}
+
+#[test]
+fn fifo_mode_level_writes_masked_threshold() {
+    // FifoMode::Level(level) -> write_register(FifoThresh, level & 0x7F).
+    // 0xFF & 0x7F = 0x7F: the high bit is unconditionally cleared.
+    let spi_x = wr(REG_FIFO_THRESH, 0x7F);
+
+    let (mut rfm, mut spi, mut reset, mut delay) = rfm_with_spi(&spi_x);
+    block_on(rfm.fifo_mode(FifoMode::Level(0xFF))).unwrap();
+    spi.done();
+    reset.done();
+    delay.done();
+}
+
+#[test]
+fn lna_preserves_reserved_bits() {
+    // update_register(Lna, (r & 0x78) | reg). Reg = Ohm200 (0x80) | AgcLoop
+    // (0). Mock returns 0xFF; expect (0xFF & 0x78) | 0x80 = 0x78 | 0x80
+    // = 0xF8 written back, proving the mask preserves bits 6:3.
+    let mut spi_x = Vec::new();
+    spi_x.extend(rd(REG_LNA, 0xFF));
+    spi_x.extend(wr(REG_LNA, 0xF8));
+
+    let (mut rfm, mut spi, mut reset, mut delay) = rfm_with_spi(&spi_x);
+    block_on(rfm.lna(LnaConfig {
+        zin: LnaImpedance::Ohm200,
+        gain_select: LnaGain::AgcLoop,
+    }))
+    .unwrap();
+    spi.done();
+    reset.done();
+    delay.done();
+}
+
+#[test]
+fn rssi_threshold_writes_value_directly() {
+    // 220 = 0xDC, single-byte write, no scaling.
+    let spi_x = wr(REG_RSSI_THRESH, 0xDC);
+
+    let (mut rfm, mut spi, mut reset, mut delay) = rfm_with_spi(&spi_x);
+    block_on(rfm.rssi_threshold(220)).unwrap();
+    spi.done();
+    reset.done();
+    delay.done();
+}
+
+#[test]
+fn continuous_dagc_writes_test_dagc_register() {
+    // ImprovedMarginAfcLowBetaOn0 = 0x30, single-byte write to TestDagc (0x6F).
+    let spi_x = wr(REG_TEST_DAGC, 0x30);
+
+    let (mut rfm, mut spi, mut reset, mut delay) = rfm_with_spi(&spi_x);
+    block_on(rfm.continuous_dagc(ContinuousDagc::ImprovedMarginAfcLowBetaOn0)).unwrap();
+    spi.done();
+    reset.done();
+    delay.done();
+}
+
+#[test]
+fn is_mode_ready_reads_irq_flags1_mode_ready_bit() {
+    // Mock returns 0x80 (ModeReady set); the helper should report true.
+    let spi_x = rd(REG_IRQ_FLAGS1, IRQ1_MODE_READY);
+
+    let (mut rfm, mut spi, mut reset, mut delay) = rfm_with_spi(&spi_x);
+    assert!(block_on(rfm.is_mode_ready()).unwrap());
+    spi.done();
+    reset.done();
+    delay.done();
+}
+
+#[test]
+fn is_packet_sent_reads_irq_flags2_packet_sent_bit() {
+    // Mock returns IRQ2_PACKET_SENT; the helper should report true.
+    let spi_x = rd(REG_IRQ_FLAGS2, IRQ2_PACKET_SENT);
+
+    let (mut rfm, mut spi, mut reset, mut delay) = rfm_with_spi(&spi_x);
+    assert!(block_on(rfm.is_packet_sent()).unwrap());
+    spi.done();
+    reset.done();
     delay.done();
 }
 
