@@ -26,6 +26,7 @@ pub enum Register {
     FrfMid = 0x08,
     FrfLsb = 0x09,
     Version = 0x10,
+    PaLevel = 0x11,
     Lna = 0x18,
     RxBw = 0x19,
     RssiValue = 0x24,

@@ -320,7 +320,11 @@ where
         self.set_mode(OpMode::Rx).await?;
 
         if let Some(dio0) = &mut self.dio0 {
-            dio0.wait_for_high().await.map_err(Error::DIO0)?;
+            // Edge-triggered: level waits on the PayloadReady-driven DIO0
+            // line are flaky on some HALs (observed on embassy-rp 0.10
+            // RP2040); the rising-edge variant latches the transition and
+            // wakes reliably.
+            dio0.wait_for_rising_edge().await.map_err(Error::DIO0)?;
         } else {
             while !self.is_packet_ready().await? {
                 self.delay.delay_us(500).await;
