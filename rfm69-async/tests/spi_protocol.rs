@@ -24,6 +24,7 @@
 
 use embedded_hal_mock::eh1::delay::CheckedDelay;
 use embedded_hal_mock::eh1::delay::Transaction as DelayTransaction;
+use embedded_hal_mock::eh1::digital::Edge as PinEdge;
 use embedded_hal_mock::eh1::digital::Mock as PinMock;
 use embedded_hal_mock::eh1::digital::State as PinState;
 use embedded_hal_mock::eh1::digital::Transaction as PinTransaction;
@@ -284,7 +285,7 @@ fn recv_with_dio0_reads_fifo_and_rssi() {
     spi_x.extend(wr(REG_DIO_MAPPING1, DIO0_PAYLOAD_READY));
     // 2. Rx mode.
     spi_x.extend(wr(REG_OPMODE, OPMODE_RX));
-    // 3. (DIO0 wait_for_high.)
+    // 3. (DIO0 wait_for_rising_edge.)
     // 4. Standby.
     spi_x.extend(wr(REG_OPMODE, OPMODE_STANDBY));
     // 5. Read FIFO length byte.
@@ -294,7 +295,7 @@ fn recv_with_dio0_reads_fifo_and_rssi() {
     // 7. Read RSSI register.
     spi_x.extend(rd(REG_RSSI_VALUE, rssi_raw));
 
-    let dio0_x = vec![PinTransaction::wait_for_state(PinState::High)];
+    let dio0_x = vec![PinTransaction::wait_for_edge(PinEdge::Rising)];
 
     let mut spi = SpiMock::new(&spi_x);
     let mut reset = PinMock::new(&[]);

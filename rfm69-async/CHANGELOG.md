@@ -129,6 +129,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Various register-sequence and bitmask issues are now regression-locked
   by the new SPI-level test pass; the previous test surface didn't
   exercise the SPI bus at all.
+- `Rfm69::recv` now waits on a DIO0 **rising edge** instead of the
+  high level. Level waits were observed to never fire on embassy-rp
+  0.10 RP2040 even when the chip drove DIO0 high in sync with
+  `PayloadReady`; the edge variant latches the transition itself and
+  wakes reliably. `send` keeps the level wait (its `PacketSent`
+  transition was always reliable).
 
 ## [0.0.2] - 2023-06-17
 
