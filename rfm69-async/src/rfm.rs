@@ -204,14 +204,35 @@ where
         Ok(reg & IrqFlags2::PayloadReady != 0)
     }
 
+    /// Read the raw `RegIrqFlags1` byte.
+    ///
+    /// Useful for diagnostics: bit 3 (`Rssi`) is asserted when the RX
+    /// chain detects energy above `RegRssiThresh`, and bit 0
+    /// (`SyncAddressMatch`) is asserted when preamble + sync-word lock.
+    pub async fn irq_flags1(&mut self) -> Result<u8, Error<E, RESET::Error, DIO0::Error>> {
+        self.read_register(Register::IrqFlags1).await
+    }
+
+    /// Read the raw `RegIrqFlags2` byte.
+    ///
+    /// Useful for diagnostics alongside [`is_packet_ready`](Self::is_packet_ready) — exposes
+    /// `CrcOk`, `FifoOverrun`, and the FIFO level flags as well.
+    pub async fn irq_flags2(&mut self) -> Result<u8, Error<E, RESET::Error, DIO0::Error>> {
+        self.read_register(Register::IrqFlags2).await
+    }
+
+    /// Read the current instantaneous RSSI value in dBm.
+    ///
+    /// Valid in `Rx` mode; the value is read from `RegRssiValue` (the
+    /// raw byte halved and negated per the datasheet).
+    pub async fn rssi(&mut self) -> Result<i16, Error<E, RESET::Error, DIO0::Error>> {
+        let reg = self.read_register(Register::RssiValue).await?;
+        Ok(-i16::from(reg) >> 1)
+    }
+
     async fn reset_fifo(&mut self) -> Result<(), Error<E, RESET::Error, DIO0::Error>> {
         self.write_register(Register::IrqFlags2, IrqFlags2::FifoOverrun as u8)
             .await
-    }
-
-    async fn read_rssi(&mut self) -> Result<i16, Error<E, RESET::Error, DIO0::Error>> {
-        let reg = self.read_register(Register::RssiValue).await?;
-        Ok(-i16::from(reg) >> 1)
     }
 
     async fn read_register(&mut self, reg: Register) -> Result<u8, Error<E, RESET::Error, DIO0::Error>> {
@@ -337,7 +358,7 @@ where
         let len = self.read_register(Register::Fifo).await?;
         let mut buffer = [0; 64];
         self.read_registers(Register::Fifo, &mut buffer[..len as usize]).await?;
-        let rssi = self.read_rssi().await?;
+        let rssi = self.rssi().await?;
 
         let packet = Packet::from_rx_data(len, &buffer, rssi).map_err(|_| Error::WrongPacketFormat)?;
 
