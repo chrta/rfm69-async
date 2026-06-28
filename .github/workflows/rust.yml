@@ -35,12 +35,12 @@ jobs:
       run: cargo doc --verbose --all-features
 
   msrv:
-    # Verifies the driver actually compiles on its declared `rust-version`.
-    # `cargo msrv verify` reads the floor from Cargo.toml's `rust-version`,
-    # so there's no second copy of the version to drift out of sync with the
-    # manifest. The `embassy` feature is the binding constraint (a let-chain
-    # in stack.rs needs 1.88); the base crate alone builds on 1.87 — hence
-    # the second run with `--all-features`, without which the gate would pass
+    # Verifies the driver compiles on its declared `rust-version` floor
+    # (the rationale for that floor is documented in the crate-root rustdoc
+    # `# MSRV` section, not restated here). `cargo msrv verify` reads the
+    # floor from Cargo.toml, so this job can't drift out of sync with the
+    # manifest. Two runs — default and `--all-features` — because the
+    # binding constraint is feature-gated; a default-only verify would pass
     # on a too-low floor. Check only — MSRV covers the library, not dev-deps
     # / the test harness. The examples crate is excluded (it pins its own
     # toolchain via rust-toolchain.toml).
