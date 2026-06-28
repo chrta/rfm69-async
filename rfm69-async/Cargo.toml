@@ -6,8 +6,8 @@ edition = "2024"
 # sets; `embedded-hal-async` 1.0 only needs 1.75 and the rest of our
 # deps are below that). The `embassy` feature uses a let-chain in
 # `stack.rs` that needs 1.88, so the package-level floor is 1.88. CI's
-# `msrv` job builds the driver on 1.88 (default + `--all-features`) to
-# keep this honest.
+# `msrv` job runs `cargo msrv verify` (default + `--all-features`), which
+# reads this `rust-version` back to keep the declared floor honest.
 rust-version = "1.88"
 license = "AGPL-3.0-only"
 description = "async driver for the rfm69 radio transceiver"
