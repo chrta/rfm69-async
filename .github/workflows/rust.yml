@@ -36,16 +36,22 @@ jobs:
 
   msrv:
     # Verifies the driver actually compiles on its declared `rust-version`.
-    # The `embassy` feature is the binding constraint (a let-chain in
-    # stack.rs needs 1.88); the base crate alone builds on 1.87. Build only
-    # — MSRV covers the library, not dev-deps / the test harness. The
-    # examples crate is excluded (it pins its own toolchain via
-    # rust-toolchain.toml).
+    # `cargo msrv verify` reads the floor from Cargo.toml's `rust-version`,
+    # so there's no second copy of the version to drift out of sync with the
+    # manifest. The `embassy` feature is the binding constraint (a let-chain
+    # in stack.rs needs 1.88); the base crate alone builds on 1.87 — hence
+    # the second run with `--all-features`, without which the gate would pass
+    # on a too-low floor. Check only — MSRV covers the library, not dev-deps
+    # / the test harness. The examples crate is excluded (it pins its own
+    # toolchain via rust-toolchain.toml).
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - name: Install MSRV toolchain
-      run: rustup toolchain install 1.88 --profile minimal
-    - name: Build driver on MSRV
+    - uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-msrv
+    - name: Verify declared MSRV (default + all-features)
       working-directory: ./rfm69-async
-      run: cargo +1.88 build --verbose && cargo +1.88 build --verbose --all-features
+      run: |
+        cargo msrv verify
+        cargo msrv verify -- cargo check --all-features
