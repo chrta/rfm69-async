@@ -193,6 +193,11 @@ git push --follow-tags               # explicit — release.toml has push = fals
 cargo publish                        # explicit — release.toml has publish = false
 ```
 
+**Release tags must be annotated.** `cargo release` already creates annotated
+tags, so the flow above is fine. If you ever tag by hand — e.g. recreating a
+tag on `main` after a rebase-merge — use `git tag -a vX.Y.Z -m "Release X.Y.Z"`,
+never a lightweight `git tag vX.Y.Z`.
+
 ## License
 
 This work is licensed under the GNU Affero General Public License v3.0 only
