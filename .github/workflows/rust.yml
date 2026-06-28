@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v7
     - name: Build & check rfm69-async
       working-directory: ./rfm69-async
       run: cargo build --verbose && cargo clippy --verbose && cargo fmt --check
@@ -46,7 +46,7 @@ jobs:
     # toolchain via rust-toolchain.toml).
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v7
     - uses: taiki-e/install-action@v2
       with:
         tool: cargo-msrv
