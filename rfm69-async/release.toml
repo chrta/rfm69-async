@@ -42,4 +42,10 @@ pre-release-replacements = [
     # crate. The `path =` entry wins for builds, but the `version =` hint
     # must stay ≤ the published version, so bump it alongside.
     { file = "../examples/rp/Cargo.toml", search = "rfm69-async = \\{ version = \"[^\"]+\"", replace = "rfm69-async = { version = \"{{version}}\"", exactly = 1 },
+    # The examples crate keeps its own lockfile. cargo-release only touches
+    # this crate's Cargo.lock, so without this the examples lockfile would
+    # still record the old version after release and the next build would
+    # dirty the tree. The path-dep entry carries no checksum, so rewriting
+    # the version string is exactly what a rebuild would produce.
+    { file = "../examples/rp/Cargo.lock", search = "name = \"rfm69-async\"\nversion = \"[^\"]+\"", replace = "name = \"rfm69-async\"\nversion = \"{{version}}\"", exactly = 1 },
 ]
