@@ -45,6 +45,10 @@ pub enum TrxError {
     Config,
     /// A packet's framing was invalid (length out of range, etc.).
     WrongPacketFormat,
+    /// The `Transceiver` has no active-recovery implementation. Returned by
+    /// the default [`Transceiver::recover`] so the `Runner` keeps the link
+    /// `Down` rather than treating an unimplemented recovery as success.
+    RecoverUnsupported,
 }
 
 // `async fn in trait` deliberately leaves the Send-bound on the returned
@@ -64,11 +68,40 @@ pub trait Transceiver {
     /// pulse `RESET` and re-apply a `config::*` helper). On `Ok(())` the
     /// `Runner` resumes normal operation; the next successful `send` / `recv`
     /// then flips the link back to `Up`. On `Err(_)` the `Runner` keeps the
-    /// link `Down` and retries after a backoff configured on `MacTiming`.
+    /// link `Down` and re-invokes `recover` after a backoff configured on
+    /// `MacTiming`.
     ///
-    /// Default: no-op `Ok(())` — the link stays `Down` permanently. Override
-    /// in your `Transceiver` impl to opt into active recovery.
+    /// Default: returns [`TrxError::RecoverUnsupported`]. A radio that doesn't
+    /// override `recover` therefore stays `Down` once the link drops — the
+    /// `Runner` keeps retrying `recover` every `MacTiming::recover_backoff`
+    /// but never makes progress. Override this to opt into active recovery.
     async fn recover(&mut self) -> Result<(), TrxError> {
-        Ok(())
+        Err(TrxError::RecoverUnsupported)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A `Transceiver` that doesn't override `recover`, so it exercises the
+    /// trait's default. `send` / `recv` are never polled by the test.
+    struct NoRecover;
+    impl Transceiver for NoRecover {
+        async fn send(&mut self, _packet: &Packet) -> Result<(), TrxError> {
+            unreachable!()
+        }
+        async fn recv(&mut self) -> Result<Packet, TrxError> {
+            unreachable!()
+        }
+    }
+
+    #[test]
+    fn default_recover_reports_unsupported() {
+        // Guards the Runner contract: an impl without active recovery must
+        // surface an error so the link stays `Down`, not a silent `Ok`.
+        let mut trx = NoRecover;
+        let result = futures::executor::block_on(trx.recover());
+        assert!(matches!(result, Err(TrxError::RecoverUnsupported)));
     }
 }

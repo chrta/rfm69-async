@@ -20,11 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   success flips it back. Surface via `Stack::is_link_up`,
   `Stack::link_state`, `Stack::wait_link_up`, `Stack::wait_link_down`.
 - **`Transceiver::recover` hook + active recovery in `Runner`.** New
-  trait method (default `Ok(())` no-op) the `Runner` calls when the
-  link transitions to `Down`. On `Ok(())` the Runner resumes normal
-  ops; on `Err(_)` it backs off (`MacTiming::recover_backoff`, default
-  500 ms) and retries. Override `recover` in your `Transceiver` impl to
-  re-pulse `RESET` and re-apply a `config::*` helper.
+  trait method (default returns `TrxError::RecoverUnsupported`) the
+  `Runner` calls when the link transitions to `Down`. On `Ok(())` the
+  Runner resumes normal ops; on `Err(_)` it backs off
+  (`MacTiming::recover_backoff`, default 500 ms) and retries `recover`,
+  so an unimplemented `recover` keeps the link `Down`. Override `recover`
+  in your `Transceiver` impl to re-pulse `RESET` and re-apply a
+  `config::*` helper.
 - **`registers` module is now public.** The typed wrappers the
   `Rfm69` setters take (`OpMode`, `Modulation`, `RxBw`, `PacketConfig`,
   `LnaConfig`, `FifoMode`, `ContinuousDagc`, …) are exposed under
