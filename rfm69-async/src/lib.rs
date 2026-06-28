@@ -130,9 +130,10 @@
 //!
 //! # MSRV
 //!
-//! Currently 1.87, set by the `heapless = "0.9"` dependency. The crate
-//! itself uses no nightly features and compiles on any stable Rust at
-//! or above that floor.
+//! Currently 1.88. The base crate builds on 1.87 (the floor
+//! `heapless = "0.9"` sets), but the `embassy` feature uses a let-chain
+//! that needs 1.88, so the declared floor is 1.88. The crate uses no
+//! nightly features and compiles on any stable Rust at or above it.
 
 #![no_std]
 

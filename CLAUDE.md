@@ -12,7 +12,7 @@ This is a two-crate Cargo setup, NOT a workspace:
 Each directory has its own `Cargo.toml` and `Cargo.lock`. Cargo commands must be run from the appropriate subdirectory; there is no top-level `Cargo.toml`.
 
 Toolchain layout:
-- The driver crate (`rfm69-async/`) declares its MSRV via `rust-version = "1.87"` in `Cargo.toml`. The 1.87 floor is set by `heapless = "0.9"` (the rest of our deps are below 1.87). The driver has no `rust-toolchain.toml` and no target requirement — it builds on whatever stable users have, host or cross.
+- The driver crate (`rfm69-async/`) declares its MSRV via `rust-version = "1.88"` in `Cargo.toml`. The base crate builds on 1.87 (the floor `heapless = "0.9"` sets; the rest of our deps are below it), but the `embassy` feature uses a let-chain in `stack.rs` that needs 1.88, so the package-level floor is 1.88. CI's `msrv` job builds the driver on 1.88 (default + `--all-features`) to keep this honest. The driver has no `rust-toolchain.toml` and no target requirement — it builds on whatever stable users have, host or cross.
 - The examples crate (`examples/rp/`) carries its own `rust-toolchain.toml` pinned to `1.95.0` and the `thumbv6m-none-eabi` target. Pinning is for hardware-build reproducibility against the embassy 0.10 stack; bump in lockstep with embassy-rp / `fixed` releases when needed. Lowest known-good is 1.93 (transitive `fixed = 1.31` requires it).
 
 The driver compiles cleanly on stable Rust — no `#![feature(...)]` gates anywhere. Earlier history used `nightly-2023-06-17` + `type_alias_impl_trait`; that's gone.
@@ -43,6 +43,7 @@ cargo test --features embassy   # host tests + Stack/Runner integration bins
 cargo doc
 cargo build --features defmt   # also exercise the defmt-gated derives
 cargo build --features embassy # exercise the optional MAC layer
+cargo +1.88 build --all-features  # MSRV gate (embassy's let-chain needs 1.88)
 
 # Examples (RP2040; the thumbv6m-none-eabi target is in rust-toolchain.toml)
 cd examples/rp
