@@ -99,8 +99,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   MSRV. The `rust-toolchain.toml` in the repo now lives under
   `examples/rp/` only (pinned to 1.95.0 for embassy 0.10
   reproducibility).
-- **MSRV: 1.87.** Set by `heapless = "0.9"`. Declared via
-  `rust-version` in `Cargo.toml`.
+- **MSRV: 1.88.** The base crate builds on 1.87 (the floor
+  `heapless = "0.9"` sets), but the `embassy` feature uses a let-chain
+  that needs 1.88, so the declared `rust-version` is 1.88.
 - **Dependencies updated to crates.io stable releases:**
   - `embedded-hal` 0.2 → **1.0**
   - `embedded-hal-async` 0.2 → **1.0**

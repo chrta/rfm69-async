@@ -2,12 +2,13 @@
 name = "rfm69-async"
 version = "0.0.2"
 edition = "2024"
-# MSRV. Floor is set by `heapless = "0.9"`, which declares
-# rust-version = "1.87". `embedded-hal-async` 1.0 only needs 1.75
-# and the rest of our deps are below that, so heapless is the binding
-# constraint. Bump if a future heapless / embedded-hal release raises
-# its own floor.
-rust-version = "1.87"
+# MSRV. The base crate builds on 1.87 (the floor `heapless = "0.9"`
+# sets; `embedded-hal-async` 1.0 only needs 1.75 and the rest of our
+# deps are below that). The `embassy` feature uses a let-chain in
+# `stack.rs` that needs 1.88, so the package-level floor is 1.88. CI's
+# `msrv` job builds the driver on 1.88 (default + `--all-features`) to
+# keep this honest.
+rust-version = "1.88"
 license = "AGPL-3.0-only"
 description = "async driver for the rfm69 radio transceiver"
 repository = "https://github.com/chrta/rfm69-async"
