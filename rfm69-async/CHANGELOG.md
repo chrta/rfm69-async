@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-06-28
+
 ### Added
 
 - **Stack / Runner API.** New high-level surface in the `stack` module
@@ -167,6 +169,7 @@ Initial release.
 - RP2040 example crate (`examples/rp/`) with `rfm69`, `echo_client`,
   `echo_server` binaries.
 
-[Unreleased]: https://github.com/chrta/rfm69-async/compare/v0.0.2...HEAD
+[Unreleased]: https://github.com/chrta/rfm69-async/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/chrta/rfm69-async/compare/v0.0.2...v0.1.0
 [0.0.2]: https://github.com/chrta/rfm69-async/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/chrta/rfm69-async/releases/tag/v0.0.1
