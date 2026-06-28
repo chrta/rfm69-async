@@ -1,6 +1,6 @@
 [package]
 name = "rfm69-async"
-version = "0.0.2"
+version = "0.1.0"
 edition = "2024"
 # MSRV — rationale in the crate-root rustdoc `# MSRV` section (src/lib.rs).
 rust-version = "1.88"
