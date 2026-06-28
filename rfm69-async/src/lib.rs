@@ -130,10 +130,17 @@
 //!
 //! # MSRV
 //!
-//! Currently 1.88. The base crate builds on 1.87 (the floor
-//! `heapless = "0.9"` sets), but the `embassy` feature uses a let-chain
-//! that needs 1.88, so the declared floor is 1.88. The crate uses no
-//! nightly features and compiles on any stable Rust at or above it.
+//! **1.88.** This section is the canonical explanation of the floor;
+//! `Cargo.toml`, the CHANGELOG, and CI reference it rather than restate
+//! it, so the reasoning lives in exactly one place.
+//!
+//! The base crate (no features) builds on **1.87** — the floor
+//! `heapless = "0.9"` sets; every other base dependency needs less. The
+//! **`embassy`** feature is what raises it: the Stack/Runner code in
+//! `stack.rs` uses a let-chain, stable since 1.88. A package declares a
+//! single `rust-version`, and it has to cover the most-demanding feature,
+//! so the declared floor is **1.88**. No nightly features are used — the
+//! crate builds on any stable toolchain at or above the floor.
 
 #![no_std]
 

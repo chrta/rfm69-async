@@ -2,12 +2,7 @@
 name = "rfm69-async"
 version = "0.0.2"
 edition = "2024"
-# MSRV. The base crate builds on 1.87 (the floor `heapless = "0.9"`
-# sets; `embedded-hal-async` 1.0 only needs 1.75 and the rest of our
-# deps are below that). The `embassy` feature uses a let-chain in
-# `stack.rs` that needs 1.88, so the package-level floor is 1.88. CI's
-# `msrv` job runs `cargo msrv verify` (default + `--all-features`), which
-# reads this `rust-version` back to keep the declared floor honest.
+# MSRV — rationale in the crate-root rustdoc `# MSRV` section (src/lib.rs).
 rust-version = "1.88"
 license = "AGPL-3.0-only"
 description = "async driver for the rfm69 radio transceiver"
