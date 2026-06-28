@@ -75,10 +75,12 @@
 //! A successful `recover` is treated as a normal radio op and flips the
 //! link back to `Up` via the usual streak machinery; a failing `recover`
 //! waits [`MacTiming::recover_backoff`] and retries on the next iteration.
-//! The default `Transceiver::recover` is a no-op, so radios that don't
-//! implement recovery effectively make `Down` terminal — provide a real
-//! `recover` in your `Transceiver` impl to re-pulse `RESET` and re-apply
-//! a `config::*` helper.
+//! The default `Transceiver::recover` returns
+//! [`TrxError::RecoverUnsupported`](crate::TrxError::RecoverUnsupported), so a
+//! radio that doesn't override it makes `Down` sticky — the Runner keeps
+//! retrying `recover` every `recover_backoff` but never makes progress.
+//! Provide a real `recover` in your `Transceiver` impl to re-pulse `RESET`
+//! and re-apply a `config::*` helper.
 
 use core::cell::Cell;
 
@@ -370,10 +372,10 @@ impl<'a, TRX: Transceiver> Runner<'a, TRX> {
             // Active recovery: while `Down`, drive `Transceiver::recover`
             // before any further send/recv. Ok flips link via record_ok;
             // Err keeps it Down and backs off so a stuck radio doesn't
-            // spin the executor. The default `recover` is no-op `Ok(())`,
-            // so radios without a custom impl will immediately appear to
-            // recover and the link will flap on the next real error — the
-            // intended signal that recovery is unimplemented.
+            // spin the executor. The default `recover` returns
+            // `TrxError::RecoverUnsupported`, so radios without a custom
+            // impl stay Down (recover retried every recover_backoff) until
+            // a real recover succeeds.
             if matches!(self.link_state.lock(|c| c.get()), LinkState::Down) {
                 match self.trx.recover().await {
                     Ok(()) => {
